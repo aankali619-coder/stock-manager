@@ -49,6 +49,12 @@ def require_admin(u=Depends(current_user)):
         raise HTTPException(403, "Admin only")
     return u
 
+@app.middleware("http")
+async def dbg(request, call_next):
+    r = await call_next(request)
+    r.headers["x-path"] = request.url.path
+    return r
+
 @app.on_event("startup")
 def startup(): init_db()
 
