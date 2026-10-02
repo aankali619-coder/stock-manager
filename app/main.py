@@ -448,4 +448,5 @@ def sw():
     from fastapi.responses import FileResponse as FR
     r = FR(os.path.join(BASE, "static", "sw.js"), media_type="application/javascript")
     r.headers["Service-Worker-Allowed"] = "/"
+    r.headers["Cache-Control"] = "no-cache"
     return r
