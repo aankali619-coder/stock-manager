@@ -20,7 +20,8 @@ class PgConn:
     def execute(self, sql, args=()):
         sql = sql.replace("?", "%s")
         if sql.lstrip().upper().startswith("INSERT") and "RETURNING" not in sql.upper():
-            sql = sql.rstrip().rstrip(";") + " RETURNING id"
+            if any(f"INTO {t}" in sql for t in ("items", "users", "transactions")):
+                sql = sql.rstrip().rstrip(";") + " RETURNING id"
         return PgCursor(self._c.execute(sql, args))
     def executescript(self, s):
         for stmt in s.split(";"):
