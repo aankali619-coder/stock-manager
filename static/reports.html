@@ -1,0 +1,13 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reports</title><link rel="stylesheet" href="/static/app.css"><script src="/static/common.js"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script></head><body>
+<main><h1>📈 Reports</h1>
+<div class="card"><h3>Stock value by category</h3><canvas id="c1" height="120"></canvas></div>
+<div class="card"><h3>Stock value by warehouse</h3><canvas id="c2" height="120"></canvas></div>
+<div class="card"><h3>Export</h3><button class="ghost" onclick="x()">⬇ Download items.csv</button></div></main>
+<script>
+const opts={plugins:{legend:{labels:{color:'#e2e8f0'}}},scales:{x:{ticks:{color:'#e2e8f0'}},y:{ticks:{color:'#e2e8f0'}}}};
+window.addEventListener('DOMContentLoaded',async()=>{if(!tok())return;
+const c=await api('/api/charts');new Chart(document.getElementById('c1'),{type:'bar',data:{labels:c.by_category.map(x=>x.category||'(none)'),datasets:[{label:'Value $',data:c.by_category.map(x=>x.value),backgroundColor:'#3b82f6'}]},options:opts});
+const w=await api('/api/warehouses');new Chart(document.getElementById('c2'),{type:'doughnut',data:{labels:w.map(x=>x.location),datasets:[{data:w.map(x=>x.value),backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4']}]},options:{plugins:{legend:{labels:{color:'#e2e8f0'}}}}})});
+function x(){fetch('/api/items/export.csv',{headers:{'Authorization':'Bearer '+tok()}}).then(r=>r.blob()).then(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='items.csv';a.click()})}
+</script></body></html>

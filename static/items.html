@@ -1,0 +1,37 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Items</title><link rel="stylesheet" href="/static/app.css"><script src="/static/common.js"></script></head><body>
+<main><h1>📦 Items</h1>
+<div class="card">
+<div class="row"><input id="q" placeholder="Search name, SKU, barcode, category, supplier, batch..." oninput="load()">
+<select id="loc" onchange="load()"><option value="">All locations</option></select>
+<select id="lowF" onchange="load()"><option value="">All</option><option value="1">Low stock</option></select>
+<button onclick="showForm()">+ Add item</button><button class="ghost" onclick="exportCSV()">⬇ CSV</button></div>
+<table><thead><tr><th>SKU</th><th>Name</th><th>Cat</th><th>Price</th><th>Cost</th><th>Qty</th><th>Min</th><th>Location</th><th>Supplier</th><th>Batch</th><th>Expiry</th><th></th></tr></thead><tbody id="tb"></tbody></table>
+</div>
+<div class="card hide" id="form"><h3 id="ft">Add item</h3>
+<input id="f_sku" placeholder="SKU"><input id="f_name" placeholder="Name"><input id="f_category" placeholder="Category">
+<input id="f_barcode" placeholder="Barcode"><input id="f_price" type="number" step="0.01" placeholder="Sell price">
+<input id="f_cost" type="number" step="0.01" placeholder="Buy cost"><input id="f_qty" type="number" placeholder="Qty">
+<input id="f_min" type="number" placeholder="Min stock"><input id="f_loc" placeholder="Location">
+<input id="f_sup" placeholder="Supplier"><input id="f_batch" placeholder="Batch"><input id="f_exp" type="date">
+<div class="row"><button onclick="save()">Save</button><button class="ghost" onclick="form.classList.add('hide')">Cancel</button></div></div>
+<div class="card hide" id="adj"><h3 id="at">Adjust</h3><select id="a_type"><option value="in">In</option><option value="out">Out</option><option value="adjust">Set exact</option></select>
+<input id="a_qty" type="number" placeholder="Qty"><input id="a_note" placeholder="Note"><div class="row"><button onclick="doAdj()">Apply</button><button class="ghost" onclick="adj.classList.add('hide')">Cancel</button></div></div>
+</main><script>
+let editId=null,adjId=null;
+const today=()=>new Date().toISOString().slice(0,10);
+async function load(){const r=localStorage.getItem('role');const list=await api(`/api/items?q=${encodeURIComponent(q.value)}${loc.value?'&location='+encodeURIComponent(loc.value):''}${lowF.value?'&low=true':''}`);if(!list)return;
+tb.innerHTML=list.map(i=>{const ex=i.expiry&&i.expiry<=today();return `<tr class="${i.quantity<=i.min_stock?'low':''}${ex?' exp':''}"><td>${i.sku}</td><td>${i.name}</td><td>${i.category||''}</td><td>$${i.price.toFixed(2)}</td><td>$${(i.cost||0).toFixed(2)}</td><td>${i.quantity}</td><td>${i.min_stock}</td><td>${i.location||''}</td><td>${i.supplier||''}</td><td>${i.batch||''}</td><td>${i.expiry||''}${ex?' ⚠️':''}</td>
+<td><button class=ghost onclick="edit(${i.id})">✏️</button><button class=ghost onclick="openAdj(${i.id},'${i.name}')">±</button><button class=ghost onclick="window.open('/label/${i.id}','_blank')">🖨</button>${r=='admin'?`<button class=danger onclick="del(${i.id})">🗑</button>`:''}</td></tr>`}).join('')}
+async function loadLocs(){const l=await api('/api/locations');if(!l)return;l.forEach(x=>{const o=document.createElement('option');o.value=o.textContent=x;loc.appendChild(o)})}
+function showForm(){editId=null;ft.textContent='Add item';['f_sku','f_name','f_category','f_barcode','f_price','f_cost','f_qty','f_min','f_loc','f_sup','f_batch','f_exp'].forEach(id=>document.getElementById(id).value='');form.classList.remove('hide')}
+async function edit(id){const r=await api('/api/items/'+id);const i=r.item;editId=id;ft.textContent='Edit '+i.name;form.classList.remove('hide');
+['sku','name','category','barcode','price','cost','loc','sup','batch','exp'].forEach(k=>document.getElementById('f_'+k).value=i[k=='loc'?'location':k=='sup'?'supplier':k=='exp'?'expiry':k]||'');document.getElementById('f_qty').value=i.quantity;document.getElementById('f_min').value=i.min_stock}
+async function save(){const b={sku:f_sku.value,name:f_name.value,category:f_category.value,barcode:f_barcode.value,price:+f_price.value||0,cost:+f_cost.value||0,quantity:+f_qty.value||0,min_stock:+f_min.value||0,location:f_loc.value,supplier:f_sup.value,batch:f_batch.value,expiry:f_exp.value};
+const r=await api(editId?'/api/items/'+editId:'/api/items',{method:editId?'PUT':'POST',body:JSON.stringify(b)});if(r&&r.detail)return alert(r.detail);form.classList.add('hide');load()}
+async function del(id){if(confirm('Delete?')){await api('/api/items/'+id,{method:'DELETE'});load()}}
+function openAdj(id,n){adjId=id;at.textContent='Adjust: '+n;adj.classList.remove('hide')}
+async function doAdj(){const r=await api(`/api/items/${adjId}/adjust`,{method:'POST',body:JSON.stringify({type:a_type.value,qty:+a_qty.value,note:a_note.value})});if(r&&r.detail)return alert(r.detail);adj.classList.add('hide');a_qty.value='';a_note.value='';load()}
+function exportCSV(){fetch('/api/items/export.csv',{headers:{'Authorization':'Bearer '+tok()}}).then(r=>r.blob()).then(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='items.csv';a.click()})}
+window.addEventListener('DOMContentLoaded',()=>{if(tok()){load();loadLocs()}});
+</script></body></html>

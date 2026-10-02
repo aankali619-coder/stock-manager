@@ -5,6 +5,7 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/static/app.css"><script src="/static/common.js"></script>
 <meta name="theme-color" content="#0f172a">
 <style>
 *{box-sizing:border-box;font-family:system-ui,Arial,sans-serif}
@@ -26,7 +27,6 @@ tr.exp td{color:#f87171}
 .hide{display:none}
 #reader{max-width:320px;margin:10px auto}
 </style></head><body>
-<header><h1>📦 Stock Manager</h1><div><a href="/about" style="color:#e2e8f0;margin-right:10px">About</a><a href="/features" style="color:#e2e8f0;margin-right:10px">Features</a><a href="/help" style="color:#e2e8f0;margin-right:10px">Help</a><button id="logoutBtn" class="ghost hide" onclick="logout()">Logout</button></div></header>
 <main>
 <div id="loginBox" class="card">
   <div class="row">
@@ -102,7 +102,7 @@ const api=(p,o={})=>fetch(p,{...o,headers:{'Content-Type':'application/json','Au
 async function login(){const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});
  if(!r.ok){loginErr.textContent='Login failed';return}const j=await r.json();token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot()}
 function logout(){localStorage.clear();location.reload()}
-function boot(){loginBox.classList.add('hide');app.classList.remove('hide');logoutBtn.classList.remove('hide');loadStats();loadItems();loadLocations()}
+function boot(){loginBox.classList.add('hide');app.classList.remove('hide');const lb=document.getElementById('logoutBtn');if(lb)lb.classList.remove('hide');loadStats();loadItems();loadLocations()}
 async function loadStats(){const s=await api('/api/stats');if(!s)return;stats.innerHTML=`<div class=stat><b>${s.items}</b>items</div><div class=stat><b>${s.units}</b>units</div><div class=stat><b>$${s.value}</b>value</div><div class=stat style="color:#4ade80"><b>$${s.profit}</b>profit</div><div class=stat style="color:#fbbf24"><b>${s.low_stock}</b>low stock</div>`;const c=await api('/api/charts');if(c){const ctx=document.getElementById('chart');if(window._ch)window._ch.destroy();window._ch=new Chart(ctx,{type:'bar',data:{labels:c.by_category.map(x=>x.category||'(none)'),datasets:[{label:'Value ($)',data:c.by_category.map(x=>x.value),backgroundColor:'#3b82f6'}]},options:{plugins:{legend:{labels:{color:'#e2e8f0'}}},scales:{x:{ticks:{color:'#e2e8f0'}},y:{ticks:{color:'#e2e8f0'}}}}})}}
 const today=()=>new Date().toISOString().slice(0,10);
 async function loadItems(){const q=search.value,loc=locFilter.value;const list=await api(`/api/items?q=${encodeURIComponent(q)}${lowOnly?'&low=true':''}${loc?'&location='+encodeURIComponent(loc):''}`);if(!list)return;

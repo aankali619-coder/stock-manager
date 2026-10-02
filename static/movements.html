@@ -1,0 +1,9 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Movements</title><link rel="stylesheet" href="/static/app.css"><script src="/static/common.js"></script></head><body>
+<main><h1>🔄 Stock Movements</h1><div class="card">
+<select id="f" onchange="load()" style="width:auto"><option value="">All types</option><option value="in">In</option><option value="out">Out</option><option value="adjust">Adjust</option></select>
+<table><thead><tr><th>When</th><th>Item</th><th>Type</th><th>Qty</th><th>By</th><th>Note</th></tr></thead><tbody id="tb"></tbody></table></div></main>
+<script>
+async function load(){const r=await api('/api/transactions?limit=200');if(!r)return;const f=document.getElementById('f').value;
+tb.innerHTML=r.filter(t=>!f||t.type==f).map(t=>`<tr><td>${t.created_at.slice(0,16).replace('T',' ')}</td><td>${t.name} (${t.sku})</td><td>${t.type}</td><td>${t.qty_change>0?'+':''}${t.qty_change}</td><td>${t.username}</td><td>${t.note||''}</td></tr>`).join('')||'<tr><td colspan=6>No movements yet</td></tr>'}
+window.addEventListener('DOMContentLoaded',()=>tok()&&load());</script></body></html>

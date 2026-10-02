@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Users</title><link rel="stylesheet" href="/static/app.css"><script src="/static/common.js"></script></head><body>
+<main><h1>👥 Users</h1><div class="card">
+<div class="row"><input id="u" placeholder="Username"><input id="p" type="password" placeholder="Password">
+<select id="r"><option value="staff">staff</option><option value="admin">admin</option></select>
+<input id="l" placeholder="Allowed locations (comma, empty=all)"><button onclick="add()">+ Add</button></div>
+<table><thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Locations</th><th>Created</th><th></th></tr></thead><tbody id="tb"></tbody></table></div></main>
+<script>
+async function load(){const r=await api('/api/users');if(!r)return;tb.innerHTML=r.map(u=>`<tr><td>${u.id}</td><td>${u.username}</td><td>${u.role}</td><td>${u.locations||'all'}</td><td>${u.created_at.slice(0,10)}</td><td><button class=danger onclick="del(${u.id})">🗑</button></td></tr>`).join('')}
+async function add(){const r=await api('/api/users',{method:'POST',body:JSON.stringify({username:u.value,password:p.value,role:r.value,locations:l.value})});if(r&&r.detail)return alert(r.detail);u.value=p.value=l.value='';load()}
+async function del(id){if(confirm('Delete user?')){await api('/api/users/'+id,{method:'DELETE'});load()}}
+window.addEventListener('DOMContentLoaded',()=>tok()&&load());</script></body></html>

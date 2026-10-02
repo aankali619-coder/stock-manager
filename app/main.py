@@ -225,6 +225,27 @@ def adjust(item_id: int, b: AdjustIn, u=Depends(current_user)):
         check_expiry(c)
         return {"quantity": r2["quantity"]}
 
+@app.get("/api/transactions")
+def txs(limit: int = 100, u=Depends(current_user)):
+    with conn() as c:
+        return [dict(r) for r in c.execute("""SELECT t.id,t.type,t.qty_change,t.note,t.created_at,i.name item,i.sku,u.username
+            FROM transactions t JOIN items i ON i.id=t.item_id JOIN users u ON u.id=t.user_id
+            ORDER BY t.id DESC LIMIT ?""", (limit,))]
+
+@app.get("/api/expiring")
+def expiring(days: int = 30, u=Depends(current_user)):
+    import datetime
+    d = (datetime.date.today()+datetime.timedelta(days=days)).isoformat()
+    with conn() as c:
+        return [dict(r) for r in c.execute("SELECT * FROM items WHERE expiry!='' AND expiry<=? ORDER BY expiry", (d,))]
+
+@app.get("/api/warehouses")
+def warehouses(u=Depends(current_user)):
+    with conn() as c:
+        return [dict(r) for r in c.execute("""SELECT COALESCE(NULLIF(location,''),'(unassigned)') location,
+            COUNT(*) items, COALESCE(SUM(quantity),0) units, COALESCE(SUM(quantity*price),0) value
+            FROM items GROUP BY location ORDER BY value DESC""")]
+
 @app.get("/api/charts")
 def charts(u=Depends(current_user)):
     with conn() as c:
@@ -309,6 +330,24 @@ def features(): return FileResponse(os.path.join(BASE, "pages", "features.html")
 
 @app.get("/help")
 def help_(): return FileResponse(os.path.join(BASE, "pages", "help.html"))
+
+@app.get("/items-page")
+def items_page(): return FileResponse(os.path.join(BASE, "static", "items.html"))
+
+@app.get("/movements")
+def movements(): return FileResponse(os.path.join(BASE, "static", "movements.html"))
+
+@app.get("/warehouses")
+def warehouses_page(): return FileResponse(os.path.join(BASE, "static", "warehouses.html"))
+
+@app.get("/alerts")
+def alerts(): return FileResponse(os.path.join(BASE, "static", "alerts.html"))
+
+@app.get("/reports")
+def reports(): return FileResponse(os.path.join(BASE, "static", "reports.html"))
+
+@app.get("/users-page")
+def users_page(): return FileResponse(os.path.join(BASE, "static", "users.html"))
 
 @app.get("/manifest.json")
 def manifest(): return FileResponse(os.path.join(BASE, "static", "manifest.json"), media_type="application/manifest+json")
