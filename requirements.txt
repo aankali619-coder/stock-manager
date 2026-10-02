@@ -1,3 +1,5 @@
 fastapi
 psycopg[binary]
 bcrypt
+google-auth
+requests

@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 from db import conn, init_db, hash_password, check_password, new_token, now
+import os, secrets as _s
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app = FastAPI(title="Stock Manager")
@@ -51,6 +53,53 @@ def require_admin(u=Depends(current_user)):
 
 @app.on_event("startup")
 def startup(): init_db()
+
+class GoogleIn(BaseModel):
+    id_token: str
+
+class Signup(BaseModel):
+    username: str = Field(..., min_length=2, max_length=64)
+    password: str = Field(..., min_length=6)
+    email: str = ""
+
+@app.get("/api/config")
+def config():
+    return {"google_client_id": GOOGLE_CLIENT_ID}
+
+@app.post("/api/signup")
+def signup(b: Signup):
+    with conn() as c:
+        try:
+            c.execute("INSERT INTO users(username,password_hash,role,created_at,email) VALUES(?,?,?,?,?)",
+                      (b.username, hash_password(b.password), "staff", now(), b.email))
+        except Exception:
+            raise HTTPException(409, "Username already taken")
+        return {"ok": True}
+
+@app.post("/api/google")
+def google_login(b: GoogleIn):
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(500, "Google sign-in not configured")
+    try:
+        from google.oauth2 import id_token as g_id_token
+        from google.auth.transport import requests as g_requests
+        info = g_id_token.verify_oauth2_token(b.id_token, g_requests.Request(), GOOGLE_CLIENT_ID)
+    except Exception:
+        raise HTTPException(401, "Invalid Google token")
+    email = info.get("email", "")
+    name = info.get("name") or email.split("@")[0]
+    with conn() as c:
+        row = c.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+        if not row:
+            try:
+                c.execute("INSERT INTO users(username,password_hash,role,created_at,email) VALUES(?,?,?,?,?)",
+                          (email.split('@')[0] + _s.token_hex(3), hash_password(_s.token_hex(16)), "staff", now(), email))
+            except Exception:
+                raise HTTPException(409, "Username conflict, try again")
+            row = c.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+        token = new_token()
+        c.execute("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", (token, row["id"], now()))
+        return {"token": token, "username": row["username"], "role": row["role"]}
 
 @app.post("/api/login")
 def login(b: Login):

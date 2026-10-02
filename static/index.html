@@ -2,6 +2,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stock Manager</title>
 <script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *{box-sizing:border-box;font-family:system-ui,Arial,sans-serif}
 body{margin:0;background:#0f172a;color:#e2e8f0}
@@ -24,9 +25,22 @@ tr.low td{color:#fbbf24}
 <header><h1>📦 Stock Manager</h1><button id="logoutBtn" class="ghost hide" onclick="logout()">Logout</button></header>
 <main>
 <div id="loginBox" class="card">
-  <h2>Login</h2>
-  <input id="u" placeholder="Username"><input id="p" type="password" placeholder="Password">
-  <button onclick="login()">Login</button>
+  <div class="row">
+    <button id="tabLogin" onclick="showTab('login')">Login</button>
+    <button id="tabSignup" class="ghost" onclick="showTab('signup')">Sign up</button>
+  </div>
+  <div id="loginForm">
+    <input id="u" placeholder="Username"><input id="p" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+  </div>
+  <div id="signupForm" class="hide">
+    <input id="su_u" placeholder="Choose username"><input id="su_e" placeholder="Email (optional)">
+    <input id="su_p" type="password" placeholder="Password (min 6)">
+    <button onclick="signup()">Create account</button>
+  </div>
+  <hr style="border-color:#334155;margin:14px 0">
+  <div id="gbtn"></div>
+  <p id="suMsg" style="color:#4ade80"></p>
   <p id="loginErr" style="color:#f87171"></p>
 </div>
 
@@ -66,6 +80,12 @@ tr.low td{color:#fbbf24}
 </div>
 </main>
 <script>
+function showTab(t){loginForm.classList.toggle('hide',t!='login');signupForm.classList.toggle('hide',t!='signup');tabLogin.className=t=='login'?'':'ghost';tabSignup.className=t=='signup'?'':'ghost'}
+async function signup(){const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:su_u.value,email:su_e.value,password:su_p.value})});
+ const j=await r.json();if(!r.ok){loginErr.textContent=j.detail;return}suMsg.textContent='Account created! You can log in now.';showTab('login')}
+async function onGoogle(resp){const r=await fetch('/api/google',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_token:resp.credential})});
+ const j=await r.json();if(!r.ok){loginErr.textContent=j.detail;return}token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot()}
+fetch('/api/config').then(r=>r.json()).then(c=>{if(c.google_client_id){const go=()=>{google.accounts.id.initialize({client_id:c.google_client_id,callback:onGoogle});google.accounts.id.renderButton(document.getElementById('gbtn'),{theme:'outline',size:'large'})};window.google?go():setTimeout(go,1500)}});
 let token=localStorage.getItem('tok'), role=localStorage.getItem('role'), lowOnly=false, editId=null, adjId=null, scanner=null;
 const api=(p,o={})=>fetch(p,{...o,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}}).then(r=>r.status==401?(logout(),null):r.json());
 async function login(){const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});

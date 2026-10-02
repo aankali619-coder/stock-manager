@@ -60,6 +60,10 @@ def init_db():
         CREATE TABLE IF NOT EXISTS sessions(
             token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
         """)
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        except Exception:
+            pass
         row = c.execute("SELECT id FROM users WHERE username='admin'").fetchone()
         if not row:
             ph = bcrypt.hashpw(b"admin123", bcrypt.gensalt())
