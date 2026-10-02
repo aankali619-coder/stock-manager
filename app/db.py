@@ -7,22 +7,23 @@ DB_PATH = os.environ.get("STOCK_DB", os.path.join(DATA_DIR, "stock.db"))
 IS_PG = bool(DATABASE_URL)
 
 class PgCursor:
-    def __init__(self, cur): self._cur = cur
+    def __init__(self, cur, ret=None): self._cur = cur; self._ret = ret
     def fetchone(self): return self._cur.fetchone()
     def fetchall(self): return self._cur.fetchall()
     @property
     def lastrowid(self):
+        if self._ret is not None: return self._ret.get("id")
         try: return self._cur.fetchone()["id"]
         except Exception: return None
 
 class PgConn:
     def __init__(self, c): self._c = c
     def execute(self, sql, args=()):
-        sql = sql.replace("?", "%s")
-        if sql.lstrip().upper().startswith("INSERT") and "RETURNING" not in sql.upper():
-            if any(f"INTO {t}" in sql for t in ("items", "users", "transactions")):
-                sql = sql.rstrip().rstrip(";") + " RETURNING id"
-        return PgCursor(self._c.execute(sql, args))
+        returning = sql.lstrip().upper().startswith("INSERT") and "RETURNING" not in sql.upper() and any(f"INTO {t}" in sql for t in ("items", "users", "transactions"))
+        if returning:
+            sql = sql.rstrip().rstrip(";") + " RETURNING id"
+        cur = self._c.execute(sql.replace("?", "%s"), args)
+        return PgCursor(cur, cur.fetchone() if returning else None)
     def executescript(self, s):
         for stmt in s.split(";"):
             if stmt.strip(): self._c.execute(stmt)
