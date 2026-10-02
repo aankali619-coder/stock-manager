@@ -225,3 +225,12 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="
 @app.get("/")
 def index():
     return FileResponse(os.path.join(BASE, "static", "index.html"))
+
+@app.get("/about")
+def about(): return FileResponse(os.path.join(BASE, "pages", "about.html"))
+
+@app.get("/features")
+def features(): return FileResponse(os.path.join(BASE, "pages", "features.html"))
+
+@app.get("/help")
+def help_(): return FileResponse(os.path.join(BASE, "pages", "help.html"))
