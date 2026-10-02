@@ -3,6 +3,9 @@
 <title>Stock Manager</title>
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0f172a">
 <style>
 *{box-sizing:border-box;font-family:system-ui,Arial,sans-serif}
 body{margin:0;background:#0f172a;color:#e2e8f0}
@@ -15,6 +18,7 @@ input,select{width:100%;padding:10px;margin:4px 0;border-radius:8px;border:1px s
 table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
 th,td{padding:8px;border-bottom:1px solid #334155;text-align:left}
 tr.low td{color:#fbbf24}
+tr.exp td{color:#f87171}
 .card{background:#1e293b;border-radius:12px;padding:14px;margin-bottom:12px}
 .row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
 .stat{background:#1e293b;border-radius:12px;padding:12px;flex:1;min-width:120px;text-align:center}
@@ -49,25 +53,32 @@ tr.low td{color:#fbbf24}
 
   <div class="card">
     <div class="row">
-      <input id="search" placeholder="Search name, SKU, barcode, category..." oninput="loadItems()">
+      <input id="search" placeholder="Search name, SKU, barcode, category, supplier, batch..." oninput="loadItems()">
+      <select id="locFilter" onchange="loadItems()"><option value="">All locations</option></select>
       <button onclick="toggleLow()" class="ghost" id="lowBtn">Show low stock</button>
     </div>
     <div class="row">
       <button onclick="scan()" class="ghost">📷 Scan barcode</button>
       <button onclick="showForm()">+ Add item</button>
+      <button class="ghost" onclick="exportCSV()">⬇ Export CSV</button>
     </div>
     <div id="reader" class="hide"></div>
-    <table><thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Qty</th><th>Location</th><th></th></tr></thead>
+    <table><thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Cost</th><th>Qty</th><th>Location</th><th>Expiry</th><th></th></tr></thead>
     <tbody id="items"></tbody></table>
   </div>
+
+  <div class="card"><h3 style="margin-top:0">📊 Stock value by category</h3><canvas id="chart" height="120"></canvas></div>
+  <p id="netStatus" style="color:#94a3b8;text-align:center"></p>
 
   <div class="card hide" id="form">
     <h3 id="formTitle">Add item</h3>
     <input id="f_sku" placeholder="SKU"><input id="f_name" placeholder="Name">
     <input id="f_category" placeholder="Category"><input id="f_barcode" placeholder="Barcode">
-    <input id="f_price" type="number" step="0.01" placeholder="Price">
+    <input id="f_price" type="number" step="0.01" placeholder="Sell price">
+    <input id="f_cost" type="number" step="0.01" placeholder="Buy cost">
     <input id="f_qty" type="number" placeholder="Quantity"><input id="f_min" type="number" placeholder="Min stock alert">
     <input id="f_loc" placeholder="Storage location">
+    <input id="f_sup" placeholder="Supplier"><input id="f_batch" placeholder="Batch no"><input id="f_exp" type="date" placeholder="Expiry">
     <div class="row"><button onclick="save()">Save</button><button class="ghost" onclick="hideForm()">Cancel</button></div>
   </div>
 
@@ -91,17 +102,19 @@ const api=(p,o={})=>fetch(p,{...o,headers:{'Content-Type':'application/json','Au
 async function login(){const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});
  if(!r.ok){loginErr.textContent='Login failed';return}const j=await r.json();token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot()}
 function logout(){localStorage.clear();location.reload()}
-function boot(){loginBox.classList.add('hide');app.classList.remove('hide');logoutBtn.classList.remove('hide');loadStats();loadItems()}
-async function loadStats(){const s=await api('/api/stats');if(!s)return;stats.innerHTML=`<div class=stat><b>${s.items}</b>items</div><div class=stat><b>${s.units}</b>units</div><div class=stat><b>$${s.value}</b>value</div><div class=stat style="color:#fbbf24"><b>${s.low_stock}</b>low stock</div>`}
-async function loadItems(){const q=search.value;const list=await api(`/api/items?q=${encodeURIComponent(q)}${lowOnly?'&low=true':''}`);if(!list)return;
- items.innerHTML=list.map(i=>`<tr class="${i.quantity<=i.min_stock?'low':''}"><td>${i.sku}</td><td>${i.name}</td><td>$${i.price.toFixed(2)}</td><td>${i.quantity}</td><td>${i.location||''}</td>
- <td><button class=ghost onclick="edit(${i.id})">✏️</button> <button class=ghost onclick="openAdjust(${i.id},'${i.name}')">±</button>${role=='admin'?` <button class=danger onclick="del(${i.id})">🗑</button>`:''}</td></tr>`).join('')}
+function boot(){loginBox.classList.add('hide');app.classList.remove('hide');logoutBtn.classList.remove('hide');loadStats();loadItems();loadLocations()}
+async function loadStats(){const s=await api('/api/stats');if(!s)return;stats.innerHTML=`<div class=stat><b>${s.items}</b>items</div><div class=stat><b>${s.units}</b>units</div><div class=stat><b>$${s.value}</b>value</div><div class=stat style="color:#4ade80"><b>$${s.profit}</b>profit</div><div class=stat style="color:#fbbf24"><b>${s.low_stock}</b>low stock</div>`;const c=await api('/api/charts');if(c){const ctx=document.getElementById('chart');if(window._ch)window._ch.destroy();window._ch=new Chart(ctx,{type:'bar',data:{labels:c.by_category.map(x=>x.category||'(none)'),datasets:[{label:'Value ($)',data:c.by_category.map(x=>x.value),backgroundColor:'#3b82f6'}]},options:{plugins:{legend:{labels:{color:'#e2e8f0'}}},scales:{x:{ticks:{color:'#e2e8f0'}},y:{ticks:{color:'#e2e8f0'}}}}})}}
+const today=()=>new Date().toISOString().slice(0,10);
+async function loadItems(){const q=search.value,loc=locFilter.value;const list=await api(`/api/items?q=${encodeURIComponent(q)}${lowOnly?'&low=true':''}${loc?'&location='+encodeURIComponent(loc):''}`);if(!list)return;
+ items.innerHTML=list.map(i=>{const expired=i.expiry&&i.expiry<=today();return `<tr class="${i.quantity<=i.min_stock?'low':''}${expired?' exp':''}"><td>${i.sku}</td><td>${i.name}</td><td>$${i.price.toFixed(2)}</td><td>$${(i.cost||0).toFixed(2)}</td><td>${i.quantity}</td><td>${i.location||''}</td><td>${i.expiry||''}${expired?' ⚠️':''}</td>
+ <td><button class=ghost onclick="edit(${i.id})">✏️</button> <button class=ghost onclick="openAdjust(${i.id},'${i.name}')">±</button> <button class=ghost onclick="window.open('/label/${i.id}','_blank')">🖨</button>${role=='admin'?` <button class=danger onclick="del(${i.id})">🗑</button>`:''}</td></tr>`}).join('')}
+async function loadLocations(){const l=await api('/api/locations');if(!l)return;l.forEach(x=>{if(![...locFilter.options].some(o=>o.value==x)){const o=document.createElement('option');o.value=o.textContent=x;locFilter.appendChild(o)}})}
 function toggleLow(){lowOnly=!lowOnly;lowBtn.textContent=lowOnly?'Show all':'Show low stock';loadItems()}
-function showForm(){editId=null;formTitle.textContent='Add item';form.classList.remove('hide');['f_sku','f_name','f_category','f_barcode','f_price','f_qty','f_min','f_loc'].forEach(id=>document.getElementById(id).value='')}
+function showForm(){editId=null;formTitle.textContent='Add item';form.classList.remove('hide');['f_sku','f_name','f_category','f_barcode','f_price','f_cost','f_qty','f_min','f_loc','f_sup','f_batch','f_exp'].forEach(id=>document.getElementById(id).value='')}
 function hideForm(){form.classList.add('hide')}
 async function edit(id){const r=await api('/api/items/'+id);const i=r.item;editId=id;formTitle.textContent='Edit '+i.name;form.classList.remove('hide');
- f_sku.value=i.sku;f_name.value=i.name;f_category.value=i.category;f_barcode.value=i.barcode;f_price.value=i.price;f_qty.value=i.quantity;f_min.value=i.min_stock;f_loc.value=i.location}
-async function save(){const body={sku:f_sku.value,name:f_name.value,category:f_category.value,barcode:f_barcode.value,price:+f_price.value||0,quantity:+f_qty.value||0,min_stock:+f_min.value||0,location:f_loc.value};
+ f_sku.value=i.sku;f_name.value=i.name;f_category.value=i.category;f_barcode.value=i.barcode;f_price.value=i.price;f_cost.value=i.cost||0;f_qty.value=i.quantity;f_min.value=i.min_stock;f_loc.value=i.location;f_sup.value=i.supplier||'';f_batch.value=i.batch||'';f_exp.value=i.expiry||''}
+async function save(){const body={sku:f_sku.value,name:f_name.value,category:f_category.value,barcode:f_barcode.value,price:+f_price.value||0,cost:+f_cost.value||0,quantity:+f_qty.value||0,min_stock:+f_min.value||0,location:f_loc.value,supplier:f_sup.value,batch:f_batch.value,expiry:f_exp.value};
  const r=await api(editId?'/api/items/'+editId:'/api/items',{method:editId?'PUT':'POST',body:JSON.stringify(body)});
  if(r&&r.detail){alert(r.detail);return}hideForm();loadItems();loadStats()}
 async function del(id){if(!confirm('Delete?'))return;await api('/api/items/'+id,{method:'DELETE'});loadItems();loadStats()}
@@ -113,5 +126,8 @@ async function scan(){reader.classList.remove('hide');scanner=new Html5Qrcode('r
   await scanner.stop();reader.classList.add('hide');
   const r=await fetch('/api/barcode/'+encodeURIComponent(code),{headers:{'Authorization':'Bearer '+token}});
   if(r.ok){const i=await r.json();search.value=i.sku;loadItems()}else alert('Item not found: '+code)})}catch(e){alert('Camera error')}}
+function exportCSV(){fetch('/api/items/export.csv',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.blob()).then(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='items.csv';a.click()})}
 if(token)boot();
+window.addEventListener('online',()=>netStatus.textContent='');window.addEventListener('offline',()=>netStatus.textContent='⚠️ Offline — showing cached view');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js');
 </script></body></html>

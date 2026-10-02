@@ -21,9 +21,13 @@ class ItemIn(BaseModel):
     category: str = ""
     barcode: str = ""
     price: float = Field(..., ge=0)
+    cost: float = Field(0, ge=0)
     quantity: int = Field(0, ge=0)
     min_stock: int = Field(0, ge=0)
     location: str = ""
+    supplier: str = ""
+    batch: str = ""
+    expiry: str = ""
 
 class AdjustIn(BaseModel):
     type: str = Field(..., pattern="^(in|out|adjust)$")
@@ -34,17 +38,44 @@ class UserIn(BaseModel):
     username: str = Field(..., min_length=2, max_length=64)
     password: str = Field(..., min_length=6)
     role: str = Field("staff", pattern="^(admin|staff)$")
+    locations: str = ""
 
 def current_user(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Not authenticated")
     token = authorization.split(" ", 1)[1]
     with conn() as c:
-        u = c.execute("""SELECT u.id,u.username,u.role FROM sessions s JOIN users u ON u.id=s.user_id
+        u = c.execute("""SELECT u.id,u.username,u.role,u.locations FROM sessions s JOIN users u ON u.id=s.user_id
                          WHERE s.token=?""", (token,)).fetchone()
     if not u:
         raise HTTPException(401, "Invalid or expired token")
     return dict(u)
+
+def allowed(u, location):
+    if u["role"] == "admin" or not (u.get("locations") or "").strip():
+        return True
+    return location in [l.strip() for l in u["locations"].split(",")]
+
+BOT = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+CHAT = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+def telegram(msg):
+    if not (BOT and CHAT): return
+    try:
+        import requests
+        requests.post(f"https://api.telegram.org/bot{BOT}/sendMessage",
+                      json={"chat_id": CHAT, "text": msg}, timeout=5)
+    except Exception: pass
+
+def low_alert(item, c):
+    if item["quantity"] <= item["min_stock"]:
+        telegram(f"⚠️ LOW STOCK: {item['name']} ({item['sku']}) — {item['quantity']} left (min {item['min_stock']})")
+
+def check_expiry(c):
+    import datetime
+    today = datetime.date.today().isoformat()
+    for r in c.execute("SELECT name,sku,expiry FROM items WHERE expiry!='' AND expiry<=?", (today,)):
+        telegram(f"⏰ EXPIRED/DUE: {r['name']} ({r['sku']}) expiry {r['expiry']}")
 
 def require_admin(u=Depends(current_user)):
     if u["role"] != "admin":
@@ -119,14 +150,19 @@ def logout(authorization: Optional[str] = Header(None)):
     return {"ok": True}
 
 @app.get("/api/items")
-def list_items(q: str = "", low: bool = False, u=Depends(current_user)):
+def list_items(q: str = "", low: bool = False, location: str = "", u=Depends(current_user)):
     sql = "SELECT * FROM items WHERE 1=1"
     args = []
     if q:
-        sql += " AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ? OR category LIKE ?)"
-        like = f"%{q}%"; args += [like]*4
+        sql += " AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ? OR category LIKE ? OR supplier LIKE ? OR batch LIKE ?)"
+        like = f"%{q}%"; args += [like]*6
     if low:
         sql += " AND quantity <= min_stock"
+    if location:
+        sql += " AND location=?"; args.append(location)
+    if u["role"] != "admin" and (u.get("locations") or "").strip():
+        locs = [l.strip() for l in u["locations"].split(",")]
+        sql += " AND location IN (" + ",".join("?"*len(locs)) + ")"; args += locs
     sql += " ORDER BY name"
     with conn() as c:
         return [dict(r) for r in c.execute(sql, args)]
@@ -135,14 +171,16 @@ def list_items(q: str = "", low: bool = False, u=Depends(current_user)):
 def add_item(b: ItemIn, u=Depends(current_user)):
     with conn() as c:
         try:
-            cur = c.execute("""INSERT INTO items(sku,name,category,barcode,price,quantity,min_stock,location,created_at)
-                               VALUES(?,?,?,?,?,?,?,?,?)""",
-                            (b.sku, b.name, b.category, b.barcode, b.price, b.quantity, b.min_stock, b.location, now()))
+            cur = c.execute("""INSERT INTO items(sku,name,category,barcode,price,cost,quantity,min_stock,location,supplier,batch,expiry,created_at)
+                               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            (b.sku, b.name, b.category, b.barcode, b.price, b.cost, b.quantity, b.min_stock, b.location, b.supplier, b.batch, b.expiry, now()))
         except Exception:
             raise HTTPException(409, "SKU already exists")
+        if not allowed(u, b.location): raise HTTPException(403, "Not your location")
         if b.quantity > 0:
             c.execute("INSERT INTO transactions(item_id,user_id,type,qty_change,note,created_at) VALUES(?,?,?,?,?,?)",
                       (cur.lastrowid, u["id"], "in", b.quantity, "initial stock", now()))
+        check_expiry(c)
         return {"id": cur.lastrowid}
 
 @app.get("/api/items/{item_id}")
@@ -159,8 +197,8 @@ def update_item(item_id: int, b: ItemIn, u=Depends(current_user)):
     with conn() as c:
         if not c.execute("SELECT id FROM items WHERE id=?", (item_id,)).fetchone():
             raise HTTPException(404, "Not found")
-        c.execute("""UPDATE items SET sku=?,name=?,category=?,barcode=?,price=?,min_stock=?,location=? WHERE id=?""",
-                  (b.sku, b.name, b.category, b.barcode, b.price, b.min_stock, b.location, item_id))
+        c.execute("""UPDATE items SET sku=?,name=?,category=?,barcode=?,price=?,cost=?,min_stock=?,location=?,supplier=?,batch=?,expiry=? WHERE id=?""",
+                  (b.sku, b.name, b.category, b.barcode, b.price, b.cost, b.min_stock, b.location, b.supplier, b.batch, b.expiry, item_id))
         return {"ok": True}
 
 @app.delete("/api/items/{item_id}")
@@ -173,15 +211,52 @@ def delete_item(item_id: int, u=Depends(require_admin)):
 @app.post("/api/items/{item_id}/adjust")
 def adjust(item_id: int, b: AdjustIn, u=Depends(current_user)):
     with conn() as c:
-        r = c.execute("SELECT quantity FROM items WHERE id=?", (item_id,)).fetchone()
+        r = c.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         if not r: raise HTTPException(404, "Not found")
+        if not allowed(u, r["location"]): raise HTTPException(403, "Not your location")
         if b.type == "out" and b.qty > r["quantity"]:
             raise HTTPException(400, "Not enough stock")
         delta = b.qty if b.type == "in" else (-b.qty if b.type == "out" else b.qty - r["quantity"])
         c.execute("UPDATE items SET quantity = quantity + ? WHERE id=?", (delta, item_id))
         c.execute("INSERT INTO transactions(item_id,user_id,type,qty_change,note,created_at) VALUES(?,?,?,?,?,?)",
                   (item_id, u["id"], b.type, delta, b.note, now()))
-        return {"quantity": c.execute("SELECT quantity FROM items WHERE id=?", (item_id,)).fetchone()["quantity"]}
+        r2 = c.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+        low_alert(r2, c)
+        check_expiry(c)
+        return {"quantity": r2["quantity"]}
+
+@app.get("/api/charts")
+def charts(u=Depends(current_user)):
+    with conn() as c:
+        cats = [dict(r) for r in c.execute("SELECT category, SUM(quantity*price) value FROM items GROUP BY category ORDER BY value DESC")]
+        return {"by_category": cats}
+
+@app.get("/api/locations")
+def locations(u=Depends(current_user)):
+    with conn() as c:
+        return [r["location"] for r in c.execute("SELECT DISTINCT location FROM items WHERE location!='' ORDER BY location")]
+
+@app.get("/api/items/export.csv")
+def export_csv(u=Depends(current_user)):
+    import io, csv
+    with conn() as c:
+        rows = list(c.execute("SELECT sku,name,category,barcode,price,cost,quantity,min_stock,location,supplier,batch,expiry FROM items ORDER BY name"))
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["sku","name","category","barcode","price","cost","quantity","min_stock","location","supplier","batch","expiry"])
+    for r in rows: w.writerow([r[k] for k in r.keys()])
+    from fastapi.responses import Response
+    return Response(buf.getvalue(), media_type="text/csv", headers={"Content-Disposition":"attachment; filename=items.csv"})
+
+@app.get("/label/{item_id}")
+def label(item_id: int):
+    with conn() as c:
+        r = c.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+        if not r: raise HTTPException(404, "Not found")
+    html = f"""<!doctype html><html><head><script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <body style="font-family:Arial;text-align:center;padding:20px"><h3>{r['name']}</h3><svg id="b"></svg><p>${r['price']:.2f} — {r['location']}</p><script>JsBarcode("#b","{r['barcode'] or r['sku']}",{{format:"CODE128"}})</script></body></html>"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(html)
 
 @app.get("/api/barcode/{code}")
 def by_barcode(code: str, u=Depends(current_user)):
@@ -193,16 +268,16 @@ def by_barcode(code: str, u=Depends(current_user)):
 @app.get("/api/stats")
 def stats(u=Depends(current_user)):
     with conn() as c:
-        items = c.execute("SELECT COUNT(*) n, COALESCE(SUM(quantity),0) total, COALESCE(SUM(quantity*price),0) value FROM items").fetchone()
+        items = c.execute("SELECT COUNT(*) n, COALESCE(SUM(quantity),0) total, COALESCE(SUM(quantity*price),0) value, COALESCE(SUM(quantity*cost),0) cost_value FROM items").fetchone()
         low = c.execute("SELECT COUNT(*) n FROM items WHERE quantity<=min_stock").fetchone()
-        return {"items": items["n"], "units": items["total"], "value": round(items["value"], 2), "low_stock": low["n"]}
+        return {"items": items["n"], "units": items["total"], "value": round(items["value"], 2), "cost_value": round(items["cost_value"],2), "profit": round(items["value"]-items["cost_value"],2), "low_stock": low["n"]}
 
 @app.post("/api/users")
 def add_user(b: UserIn, u=Depends(require_admin)):
     with conn() as c:
         try:
-            c.execute("INSERT INTO users(username,password_hash,role,created_at) VALUES(?,?,?,?)",
-                      (b.username, hash_password(b.password), b.role, now()))
+            c.execute("INSERT INTO users(username,password_hash,role,created_at,locations) VALUES(?,?,?,?,?)",
+                      (b.username, hash_password(b.password), b.role, now(), b.locations))
         except Exception:
             raise HTTPException(409, "Username taken")
         return {"ok": True}
@@ -210,7 +285,7 @@ def add_user(b: UserIn, u=Depends(require_admin)):
 @app.get("/api/users")
 def list_users(u=Depends(require_admin)):
     with conn() as c:
-        return [dict(r) for r in c.execute("SELECT id,username,role,created_at FROM users ORDER BY id")]
+        return [dict(r) for r in c.execute("SELECT id,username,role,locations,created_at FROM users ORDER BY id")]
 
 @app.delete("/api/users/{uid}")
 def del_user(uid: int, u=Depends(require_admin)):
@@ -234,3 +309,13 @@ def features(): return FileResponse(os.path.join(BASE, "pages", "features.html")
 
 @app.get("/help")
 def help_(): return FileResponse(os.path.join(BASE, "pages", "help.html"))
+
+@app.get("/manifest.json")
+def manifest(): return FileResponse(os.path.join(BASE, "static", "manifest.json"), media_type="application/manifest+json")
+
+@app.get("/sw.js")
+def sw():
+    from fastapi.responses import FileResponse as FR
+    r = FR(os.path.join(BASE, "static", "sw.js"), media_type="application/javascript")
+    r.headers["Service-Worker-Allowed"] = "/"
+    return r
