@@ -225,6 +225,88 @@ def adjust(item_id: int, b: AdjustIn, u=Depends(current_user)):
         check_expiry(c)
         return {"quantity": r2["quantity"]}
 
+class PoItem(BaseModel):
+    item_id: int; qty: int = Field(..., gt=0); price: float = 0
+class PoIn(BaseModel):
+    supplier_id: int; items: list[PoItem]
+class SaleItem(BaseModel):
+    item_id: int; qty: int = Field(..., gt=0)
+class SaleIn(BaseModel):
+    customer: str = ""; items: list[SaleItem]
+class SupplierIn(BaseModel):
+    name: str = Field(..., min_length=1); contact: str = ""
+
+@app.get("/api/suppliers")
+def suppliers(u=Depends(current_user)):
+    with conn() as c:
+        return [dict(r) for r in c.execute("SELECT * FROM suppliers ORDER BY name")]
+
+@app.post("/api/suppliers")
+def add_supplier(b: SupplierIn, u=Depends(current_user)):
+    with conn() as c:
+        cur = c.execute("INSERT INTO suppliers(name,contact,created_at) VALUES(?,?,?)", (b.name, b.contact, now()))
+        return {"id": cur.lastrowid}
+
+@app.delete("/api/suppliers/{sid}")
+def del_supplier(sid: int, u=Depends(require_admin)):
+    with conn() as c:
+        c.execute("DELETE FROM suppliers WHERE id=?", (sid,)); return {"ok": True}
+
+@app.get("/api/pos")
+def pos(u=Depends(current_user)):
+    with conn() as c:
+        rows=[dict(r) for r in c.execute("SELECT p.*,s.name supplier FROM purchase_orders p JOIN suppliers s ON s.id=p.supplier_id ORDER BY p.id DESC")]
+        for r in rows:
+            r["items"]=[dict(t) for t in c.execute("SELECT pi.*,i.name,i.sku FROM po_items pi JOIN items i ON i.id=pi.item_id WHERE pi.po_id=?",(r["id"],))]
+        return rows
+
+@app.post("/api/pos")
+def add_po(b: PoIn, u=Depends(current_user)):
+    with conn() as c:
+        cur = c.execute("INSERT INTO purchase_orders(supplier_id,status,created_at) VALUES(?,?,?)", (b.supplier_id, "pending", now()))
+        for it in b.items:
+            c.execute("INSERT INTO po_items(po_id,item_id,qty,price) VALUES(?,?,?,?)", (cur.lastrowid, it.item_id, it.qty, it.price))
+        return {"id": cur.lastrowid}
+
+@app.post("/api/pos/{pid}/receive")
+def receive(pid: int, u=Depends(current_user)):
+    with conn() as c:
+        po = c.execute("SELECT * FROM purchase_orders WHERE id=?", (pid,)).fetchone()
+        if not po: raise HTTPException(404, "Not found")
+        if po["status"] == "received": raise HTTPException(400, "Already received")
+        for it in c.execute("SELECT * FROM po_items WHERE po_id=?", (pid,)):
+            c.execute("UPDATE items SET quantity=quantity+?, cost=? WHERE id=?", (it["qty"], it["price"] or 0, it["item_id"]))
+            c.execute("INSERT INTO transactions(item_id,user_id,type,qty_change,note,created_at) VALUES(?,?,?,?,?,?)",
+                      (it["item_id"], u["id"], "in", it["qty"], f"PO #{pid}", now()))
+        c.execute("UPDATE purchase_orders SET status='received' WHERE id=?", (pid,))
+        return {"ok": True}
+
+@app.get("/api/sales")
+def sales_list(u=Depends(current_user)):
+    with conn() as c:
+        rows=[dict(r) for r in c.execute("SELECT * FROM sales ORDER BY id DESC")]
+        for r in rows:
+            r["items"]=[dict(t) for t in c.execute("SELECT si.*,i.name,i.sku FROM sale_items si JOIN items i ON i.id=si.item_id WHERE si.sale_id=?",(r["id"],))]
+        return rows
+
+@app.post("/api/sales")
+def add_sale(b: SaleIn, u=Depends(current_user)):
+    with conn() as c:
+        total = 0
+        for it in b.items:
+            r = c.execute("SELECT * FROM items WHERE id=?", (it.item_id,)).fetchone()
+            if not r: raise HTTPException(404, f"Item {it.item_id} not found")
+            if it.qty > r["quantity"]: raise HTTPException(400, f"Not enough stock for {r['name']}")
+            total += it.qty * r["price"]
+        cur = c.execute("INSERT INTO sales(customer,total,created_at) VALUES(?,?,?)", (b.customer, round(total,2), now()))
+        for it in b.items:
+            r = c.execute("SELECT price FROM items WHERE id=?", (it.item_id,)).fetchone()
+            c.execute("INSERT INTO sale_items(sale_id,item_id,qty,price) VALUES(?,?,?,?)", (cur.lastrowid, it.item_id, it.qty, r["price"]))
+            c.execute("UPDATE items SET quantity=quantity-? WHERE id=?", (it.qty, it.item_id))
+            c.execute("INSERT INTO transactions(item_id,user_id,type,qty_change,note,created_at) VALUES(?,?,?,?,?,?)",
+                      (it.item_id, u["id"], "out", -it.qty, f"Sale #{cur.lastrowid}", now()))
+        return {"id": cur.lastrowid, "total": round(total,2)}
+
 @app.get("/api/transactions")
 def txs(limit: int = 100, u=Depends(current_user)):
     with conn() as c:
@@ -348,6 +430,15 @@ def reports(): return FileResponse(os.path.join(BASE, "static", "reports.html"))
 
 @app.get("/users-page")
 def users_page(): return FileResponse(os.path.join(BASE, "static", "users.html"))
+
+@app.get("/suppliers")
+def suppliers_page(): return FileResponse(os.path.join(BASE, "static", "suppliers.html"))
+
+@app.get("/purchases")
+def purchases_page(): return FileResponse(os.path.join(BASE, "static", "purchases.html"))
+
+@app.get("/sales-page")
+def sales_page(): return FileResponse(os.path.join(BASE, "static", "sales.html"))
 
 @app.get("/manifest.json")
 def manifest(): return FileResponse(os.path.join(BASE, "static", "manifest.json"), media_type="application/manifest+json")

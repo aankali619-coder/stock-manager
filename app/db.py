@@ -19,7 +19,7 @@ class PgCursor:
 class PgConn:
     def __init__(self, c): self._c = c
     def execute(self, sql, args=()):
-        returning = sql.lstrip().upper().startswith("INSERT") and "RETURNING" not in sql.upper() and any(f"INTO {t}" in sql for t in ("items", "users", "transactions"))
+        returning = sql.lstrip().upper().startswith("INSERT") and "RETURNING" not in sql.upper() and any(f"INTO {t}" in sql for t in ("items","users","transactions","suppliers","purchase_orders","po_items","sales","sale_items"))
         if returning:
             sql = sql.rstrip().rstrip(";") + " RETURNING id"
         cur = self._c.execute(sql.replace("?", "%s"), args)
@@ -59,6 +59,16 @@ def init_db():
             qty_change INTEGER NOT NULL, note TEXT DEFAULT '', created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS sessions(
             token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS suppliers(
+            {pk}, name TEXT NOT NULL, contact TEXT DEFAULT '', created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS purchase_orders(
+            {pk}, supplier_id INTEGER NOT NULL REFERENCES suppliers(id), status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS po_items(
+            {pk}, po_id INTEGER NOT NULL REFERENCES purchase_orders(id), item_id INTEGER NOT NULL REFERENCES items(id), qty INTEGER NOT NULL, price REAL NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS sales(
+            {pk}, customer TEXT DEFAULT '', total REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS sale_items(
+            {pk}, sale_id INTEGER NOT NULL REFERENCES sales(id), item_id INTEGER NOT NULL REFERENCES items(id), qty INTEGER NOT NULL, price REAL NOT NULL);
         """)
         try:
             c.execute("ALTER TABLE users ADD COLUMN email TEXT")

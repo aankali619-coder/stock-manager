@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Suppliers</title><link rel="stylesheet" href="/static/app.css"><script src="/static/common.js"></script></head><body>
+<main><h1>🏭 Suppliers</h1><div class="card">
+<div class="row"><input id="n" placeholder="Company name"><input id="c" placeholder="Contact / phone / email"><button onclick="add()">+ Add</button></div>
+<table><thead><tr><th>Name</th><th>Contact</th><th>Added</th><th></th></tr></thead><tbody id="tb"></tbody></table></div></main>
+<script>
+async function load(){const r=await api('/api/suppliers');if(!r)return;tb.innerHTML=r.map(s=>`<tr><td>${s.name}</td><td>${s.contact||''}</td><td>${s.created_at.slice(0,10)}</td><td>${localStorage.getItem('role')=='admin'?`<button class=danger onclick="del(${s.id})">🗑</button>`:''}</td></tr>`).join('')}
+async function add(){const r=await api('/api/suppliers',{method:'POST',body:JSON.stringify({name:n.value,contact:c.value})});if(r&&r.detail)return alert(r.detail);n.value=c.value='';load()}
+async function del(id){if(confirm('Delete?')){await api('/api/suppliers/'+id,{method:'DELETE'});load()}}
+window.addEventListener('DOMContentLoaded',()=>tok()&&load());</script></body></html>

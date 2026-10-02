@@ -1,4 +1,4 @@
-const PAGES=[['/','📊 Dashboard'],['/items-page','📦 Items'],['/movements','🔄 Movements'],['/warehouses','🏬 Warehouses'],['/alerts','🚨 Alerts'],['/reports','📈 Reports'],['/users-page','👥 Users']];
+const PAGES=[['/','📊 Dashboard'],['/items-page','📦 Items'],['/movements','🔄 Movements'],['/warehouses','🏬 Warehouses'],['/alerts','🚨 Alerts'],['/reports','📈 Reports'],['/suppliers','🏭 Suppliers'],['/purchases','🛒 Purchases'],['/sales-page','💰 Sales'],['/users-page','👥 Users']];
 function renderNav(){const t=localStorage.getItem('tok');const path=location.pathname;
  document.body.insertAdjacentHTML('afterbegin',`<nav><b>📦 StockManager</b>${PAGES.map(p=>`<a href="${p[0]}" class="${path==p[0]?'on':''}">${p[1]}</a>`).join('')}${t?'<a href="#" onclick="logout()">🚪 Logout</a>':''}</nav>`)}
 function logout(){localStorage.clear();location.href='/'}
