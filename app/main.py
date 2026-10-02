@@ -82,6 +82,13 @@ def require_admin(u=Depends(current_user)):
         raise HTTPException(403, "Admin only")
     return u
 
+@app.middleware("http")
+async def nocache(request, call_next):
+    r = await call_next(request)
+    if request.method == "GET":
+        r.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return r
+
 @app.on_event("startup")
 def startup(): init_db()
 
