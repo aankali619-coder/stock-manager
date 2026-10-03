@@ -52,6 +52,20 @@ tr.exp td{color:#f87171}
   <p id="loginErr" style="color:#f87171"></p>
 </div>
 
+<div id="tutorial" class="card hide" style="border:2px solid #3b82f6">
+<h3>👋 Welcome! Quick tour</h3>
+<ol style="line-height:1.7">
+<li><b>Dashboard</b> — see totals: items, units, stock value, profit, low-stock count.</li>
+<li><b>Items</b> — add your shop's items (SKU, price in KSh, quantity, location, supplier, batch, expiry).</li>
+<li><b>Movements</b> — every stock change is recorded here with who did it.</li>
+<li><b>Warehouses</b> — see stock grouped by storage location.</li>
+<li><b>Alerts</b> — check low stock, expiring items, and items that are out (missing).</li>
+<li><b>Prices</b> — update prices when supplier prices change; history is kept.</li>
+<li><b>Purchases / Sales</b> — receive stock from suppliers and record sales to customers.</li>
+<li>Use <b>📷 Scan barcode</b> on Items to find items fast, and <b>🖨</b> to print price labels.</li>
+</ol>
+<button onclick="finishTutorial()">Got it — start using the app</button>
+</div>
 <div id="app" class="hide">
   <div class="row" id="stats"></div>
 
@@ -99,11 +113,11 @@ function showTab(t){loginForm.classList.toggle('hide',t!='login');signupForm.cla
 async function signup(){const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:su_u.value,email:su_e.value,password:su_p.value,phone:su_ph.value})});
  const j=await r.json();if(!r.ok){loginErr.textContent=j.detail;return}suMsg.textContent='Account created! You can log in now.';showTab('login')}
 async function onGoogle(resp){const r=await fetch('/api/google',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_token:resp.credential})});
- const j=await r.json();if(!r.ok){loginErr.textContent=j.detail;return}token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot()}
+ const j=await r.json();if(!r.ok){loginErr.textContent=j.detail;return}token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot();maybeShowTutorial(j)}
 fetch('/api/config').then(r=>r.json()).then(c=>{if(!c.google_client_id)return;let tries=0;const iv=setInterval(()=>{tries++;if(window.google){clearInterval(iv);google.accounts.id.initialize({client_id:c.google_client_id,callback:onGoogle});google.accounts.id.renderButton(document.getElementById('gbtn'),{theme:'outline',size:'large'})}if(tries>20){clearInterval(iv);gbtn.innerHTML='<p style="color:#f87171">Google sign-in failed to load (check internet/ad-blocker).</p>'}},500)});
 let token=localStorage.getItem('tok'), role=localStorage.getItem('role'), lowOnly=false, editId=null, adjId=null, scanner=null;
 async function login(){const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});
- if(!r.ok){loginErr.textContent='Login failed';return}const j=await r.json();token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot()}
+ if(!r.ok){loginErr.textContent='Login failed';return}const j=await r.json();token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot();maybeShowTutorial(j)}
 function logout(){localStorage.clear();location.reload()}
 function boot(){loginBox.classList.add('hide');app.classList.remove('hide');const lb=document.getElementById('logoutBtn');if(lb)lb.classList.remove('hide');loadStats();loadItems();loadLocations()}
 async function loadStats(){const s=await api('/api/stats');if(!s)return;stats.innerHTML=`<div class=stat><b>${s.items}</b>items</div><div class=stat><b>${s.units}</b>units</div><div class=stat><b>KSh ${s.value}</b>value</div><div class=stat style="color:#4ade80"><b>KSh ${s.profit}</b>profit</div><div class=stat style="color:#fbbf24"><b>${s.low_stock}</b>low stock</div>`;const c=await api('/api/charts');if(c){const ctx=document.getElementById('chart');if(window._ch)window._ch.destroy();window._ch=new Chart(ctx,{type:'bar',data:{labels:c.by_category.map(x=>x.category||'(none)'),datasets:[{label:'Value ($)',data:c.by_category.map(x=>x.value),backgroundColor:'#3b82f6'}]},options:{plugins:{legend:{labels:{color:'#e2e8f0'}}},scales:{x:{ticks:{color:'#e2e8f0'}},y:{ticks:{color:'#e2e8f0'}}}}})}}
@@ -130,6 +144,8 @@ async function scan(){reader.classList.remove('hide');scanner=new Html5Qrcode('r
   const r=await fetch('/api/barcode/'+encodeURIComponent(code),{headers:{'Authorization':'Bearer '+token}});
   if(r.ok){const i=await r.json();search.value=i.sku;loadItems()}else alert('Item not found: '+code)})}catch(e){alert('Camera error')}}
 function exportCSV(){fetch('/api/items/export.csv',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.blob()).then(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='items.csv';a.click()})}
+function maybeShowTutorial(j){if(j&&!j.seen_tutorial){document.getElementById('tutorial').classList.remove('hide');app.classList.add('hide')}}
+async function finishTutorial(){await fetch('/api/tutorial-done',{method:'POST',headers:{'Authorization':'Bearer '+token}});document.getElementById('tutorial').classList.add('hide');app.classList.remove('hide')}
 if(token)boot();
 window.addEventListener('online',()=>netStatus.textContent='');window.addEventListener('offline',()=>netStatus.textContent='⚠️ Offline — showing cached view');
 // service worker disabled - fresh app always loads

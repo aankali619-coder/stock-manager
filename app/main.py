@@ -138,7 +138,7 @@ def google_login(b: GoogleIn):
             row = c.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
         token = new_token()
         c.execute("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", (token, row["id"], now()))
-        return {"token": token, "username": row["username"], "role": row["role"]}
+        return {"token": token, "username": row["username"], "role": row["role"], "seen_tutorial": row["seen_tutorial"] if "seen_tutorial" in row.keys() else 0}
 
 @app.post("/api/login")
 def login(b: Login):
@@ -148,7 +148,13 @@ def login(b: Login):
             raise HTTPException(401, "Bad credentials")
         token = new_token()
         c.execute("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", (token, row["id"], now()))
-        return {"token": token, "username": row["username"], "role": row["role"]}
+        return {"token": token, "username": row["username"], "role": row["role"], "seen_tutorial": row["seen_tutorial"] if "seen_tutorial" in row.keys() else 0}
+
+@app.post("/api/tutorial-done")
+def tutorial_done(u=Depends(current_user)):
+    with conn() as c:
+        c.execute("UPDATE users SET seen_tutorial=1 WHERE id=?", (u["id"],))
+        return {"ok": True}
 
 @app.post("/api/logout")
 def logout(authorization: Optional[str] = Header(None)):
