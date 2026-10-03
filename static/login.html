@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in / Register</title><link rel="stylesheet" href="/static/app.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head><body>
+<main style="max-width:480px">
+<div class="card">
+  <h2 style="text-align:center">📦 StockManager</h2>
+  <div class="row">
+    <button id="tabLogin" onclick="showTab('login')">Login</button>
+    <button id="tabSignup" class="ghost" onclick="showTab('signup')">Register</button>
+  </div>
+  <div id="loginForm">
+    <input id="u" placeholder="Username" style="width:100%"><input id="p" type="password" placeholder="Password" style="width:100%">
+    <input id="pin" type="password" inputmode="numeric" maxlength="6" placeholder="Security PIN (if set)" style="width:100%">
+    <button onclick="login()" style="width:100%">Login</button>
+  </div>
+  <div id="signupForm" class="hide">
+    <input id="su_e" type="email" placeholder="Email" style="width:100%">
+    <input id="su_u" placeholder="Create username" style="width:100%">
+    <input id="su_p" type="password" placeholder="Create password (min 8, upper, number, symbol)" style="width:100%">
+    <input id="su_p2" type="password" placeholder="Confirm new password" style="width:100%">
+    <input id="su_phn" type="tel" placeholder="Phone number" style="width:100%">
+    <input id="su_pin" type="password" inputmode="numeric" maxlength="6" placeholder="6-digit security PIN (for login)" style="width:100%">
+    <input id="su_mpesa" placeholder="M-Pesa Till/Paybill or phone" style="width:100%">
+    <button onclick="signup()" style="width:100%">Create account</button>
+  </div>
+  <hr style="border-color:#334155;margin:14px 0">
+  <p style="text-align:center;color:#94a3b8;margin:0 0 8px">— or continue with —</p>
+  <div id="gbtn" style="display:flex;justify-content:center"></div>
+  <p id="suMsg" style="color:#4ade80"></p>
+  <p id="loginErr" style="color:#f87171"></p>
+</div></main>
+<script>
+function showTab(t){loginForm.classList.toggle('hide',t!='login');signupForm.classList.toggle('hide',t!='signup');tabLogin.className=t=='login'?'':'ghost';tabSignup.className=t=='signup'?'':'ghost'}
+async function signup(){const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:su_u.value,email:su_e.value,password:su_p.value,phone:su_phn.value,pin:su_pin.value,confirm:su_p2.value,mpesa:su_mpesa.value})});
+ const j=await r.json();if(!r.ok){loginErr.textContent=JSON.stringify(j.detail);return}suMsg.textContent='Account created! You can log in now.';showTab('login')}
+async function onGoogle(resp){const r=await fetch('/api/google',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_token:resp.credential})});
+ const j=await r.json();if(!r.ok){loginErr.textContent=j.detail;return}finish(j)}
+async function login(){const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value,pin:pin.value})});
+ if(!r.ok){const j=await r.json();loginErr.textContent=j.detail;return}finish(await r.json())}
+function finish(j){localStorage.setItem('tok',j.token);localStorage.setItem('role',j.role);localStorage.setItem('seen',j.seen_tutorial?'1':'0');location.href='/';}
+fetch('/api/config').then(r=>r.json()).then(c=>{if(!c.google_client_id)return;let tries=0;const iv=setInterval(()=>{tries++;if(window.google){clearInterval(iv);google.accounts.id.initialize({client_id:c.google_client_id,callback:onGoogle});google.accounts.id.renderButton(document.getElementById('gbtn'),{theme:'outline',size:'large'})}if(tries>20)clearInterval(iv)},500)});
+if(localStorage.getItem('tok'))location.href='/';
+</script></body></html>

@@ -4,5 +4,5 @@ function renderNav(){const t=localStorage.getItem('tok');const path=location.pat
 function logout(){localStorage.clear();location.href='/'}
 function tok(){return localStorage.getItem('tok')}
 async function api(p,o={}){const r=await fetch(p,{...o,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok()}});if(r.status==401){logout();return null}return r.json()}
-function guard(){if(!tok()&&!location.pathname.startsWith('/pages')){if(location.pathname!='/')location.href='/'}}
+function guard(){if(!tok()&&location.pathname!='/login')location.href='/login'}
 window.addEventListener('DOMContentLoaded',()=>{renderNav();guard()});
