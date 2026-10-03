@@ -10,6 +10,7 @@ class PgCursor:
     def __init__(self, cur, ret=None): self._cur = cur; self._ret = ret
     def fetchone(self): return self._cur.fetchone()
     def fetchall(self): return self._cur.fetchall()
+    def __iter__(self): return iter(self._cur.fetchall())
     @property
     def lastrowid(self):
         if self._ret is not None: return self._ret.get("id")
@@ -19,7 +20,7 @@ class PgCursor:
 class PgConn:
     def __init__(self, c): self._c = c
     def execute(self, sql, args=()):
-        returning = sql.lstrip().upper().startswith("INSERT") and "RETURNING" not in sql.upper() and any(f"INTO {t}" in sql for t in ("items","users","transactions","suppliers","purchase_orders","po_items","sales","sale_items"))
+        returning = sql.lstrip().upper().startswith("INSERT") and "RETURNING" not in sql.upper() and any(f"INTO {t}" in sql for t in ("items","users","transactions","suppliers","purchase_orders","po_items","sales","sale_items","price_history"))
         if returning:
             sql = sql.rstrip().rstrip(";") + " RETURNING id"
         cur = self._c.execute(sql.replace("?", "%s"), args)
@@ -69,6 +70,8 @@ def init_db():
             {pk}, customer TEXT DEFAULT '', total REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS sale_items(
             {pk}, sale_id INTEGER NOT NULL REFERENCES sales(id), item_id INTEGER NOT NULL REFERENCES items(id), qty INTEGER NOT NULL, price REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS price_history(
+            {pk}, item_id INTEGER NOT NULL REFERENCES items(id), old_price REAL, new_price REAL, changed_at TEXT NOT NULL);
         """)
         try:
             c.execute("ALTER TABLE users ADD COLUMN email TEXT")

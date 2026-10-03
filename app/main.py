@@ -205,8 +205,12 @@ def update_item(item_id: int, b: ItemIn, u=Depends(current_user)):
     with conn() as c:
         if not c.execute("SELECT id FROM items WHERE id=?", (item_id,)).fetchone():
             raise HTTPException(404, "Not found")
+        old = c.execute("SELECT price FROM items WHERE id=?", (item_id,)).fetchone()
         c.execute("""UPDATE items SET sku=?,name=?,category=?,barcode=?,price=?,cost=?,min_stock=?,location=?,supplier=?,batch=?,expiry=? WHERE id=?""",
                   (b.sku, b.name, b.category, b.barcode, b.price, b.cost, b.min_stock, b.location, b.supplier, b.batch, b.expiry, item_id))
+        if old and old["price"] != b.price:
+            c.execute("INSERT INTO price_history(item_id,old_price,new_price,changed_at) VALUES(?,?,?,?)",
+                      (item_id, old["price"], b.price, now()))
         return {"ok": True}
 
 @app.delete("/api/items/{item_id}")
@@ -314,6 +318,39 @@ def add_sale(b: SaleIn, u=Depends(current_user)):
             c.execute("INSERT INTO transactions(item_id,user_id,type,qty_change,note,created_at) VALUES(?,?,?,?,?,?)",
                       (it.item_id, u["id"], "out", -it.qty, f"Sale #{cur.lastrowid}", now()))
         return {"id": cur.lastrowid, "total": round(total,2)}
+
+class PriceIn(BaseModel):
+    price: float = Field(..., ge=0)
+    cost: float = Field(0, ge=0)
+
+@app.get("/api/missing")
+def missing(u=Depends(current_user)):
+    with conn() as c:
+        return [dict(r) for r in c.execute("SELECT * FROM items WHERE quantity = 0 ORDER BY name")]
+
+@app.get("/api/prices")
+def prices(u=Depends(current_user)):
+    with conn() as c:
+        return [dict(r) for r in c.execute("SELECT id,sku,name,category,price,cost,quantity,location FROM items ORDER BY name")]
+
+@app.post("/api/items/{item_id}/price")
+def set_price(item_id: int, b: PriceIn, u=Depends(current_user)):
+    with conn() as c:
+        r = c.execute("SELECT price FROM items WHERE id=?", (item_id,)).fetchone()
+        if not r: raise HTTPException(404, "Not found")
+        c.execute("UPDATE items SET price=?, cost=? WHERE id=?", (b.price, b.cost, item_id))
+        c.execute("INSERT INTO price_history(item_id,old_price,new_price,changed_at) VALUES(?,?,?,?)",
+                  (item_id, r["price"], b.price, now()))
+        return {"ok": True}
+
+@app.get("/api/price-history")
+def price_history(item_id: int = 0, u=Depends(current_user)):
+    with conn() as c:
+        if item_id:
+            rows = c.execute("SELECT ph.*,i.name,i.sku FROM price_history ph JOIN items i ON i.id=ph.item_id WHERE ph.item_id=? ORDER BY ph.id DESC", (item_id,))
+        else:
+            rows = c.execute("SELECT ph.*,i.name,i.sku FROM price_history ph JOIN items i ON i.id=ph.item_id ORDER BY ph.id DESC LIMIT 100")
+        return [dict(r) for r in rows]
 
 @app.get("/api/transactions")
 def txs(limit: int = 100, u=Depends(current_user)):
@@ -447,6 +484,9 @@ def purchases_page(): return FileResponse(os.path.join(BASE, "static", "purchase
 
 @app.get("/sales-page")
 def sales_page(): return FileResponse(os.path.join(BASE, "static", "sales.html"))
+
+@app.get("/prices")
+def prices_page(): return FileResponse(os.path.join(BASE, "static", "prices.html"))
 
 @app.get("/manifest.json")
 def manifest(): return FileResponse(os.path.join(BASE, "static", "manifest.json"), media_type="application/manifest+json")
