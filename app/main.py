@@ -388,6 +388,15 @@ def stk_push(phone, amount, ref):
     except Exception as e:
         return {"mode": "error", "message": str(e)}
 
+@app.post("/api/mpesa-callback")
+async def mpesa_callback(request):
+    try:
+        data = await request.json()
+        print("MPESA CALLBACK:", data)
+    except Exception:
+        pass
+    return {"ResultCode": 0, "ResultDesc": "Accepted"}
+
 @app.get("/api/missing")
 def missing(u=Depends(current_user)):
     with conn() as c:
