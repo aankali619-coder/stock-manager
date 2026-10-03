@@ -1,0 +1,34 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Checkout</title><link rel="stylesheet" href="/static/app.css"><script src="/static/common.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script></head><body>
+<main><h1>🛒 Checkout — Scan to Sell</h1>
+<div class="card">
+<div class="row"><input id="bc" placeholder="Scan barcode or type SKU..."><button onclick="addScan()">Add</button><button class="ghost" onclick="startScan()">📷 Camera</button></div>
+<div id="reader" class="hide" style="max-width:320px"></div>
+</div>
+<div class="card"><h3>🧾 Current bill</h3>
+<table><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Line total</th><th></th></tr></thead><tbody id="cart"></tbody></table>
+<p><b>Total: KSh <span id="total">0.00</span></b></p>
+<div class="row">
+<input id="cust" placeholder="Customer name"><input id="mpesa" placeholder="Customer M-Pesa number">
+<button onclick="pay()">💰 Charge & sell</button>
+<button class="danger" onclick="cart=[];render()">🗑 Clear bill</button></div>
+</div></main>
+<script>
+let cart=[];
+const $=(i)=>document.getElementById(i);
+async function lookup(code){const r=await fetch('/api/barcode/'+encodeURIComponent(code),{headers:{'Authorization':'Bearer '+tok()}});if(!r.ok)return alert('Item not found: '+code);const i=await r.json();
+ if(cart.find(c=>c.id==i.id)){cart.find(c=>c.id==i.id).qty++}else{cart.push({id:i.id,name:i.name,price:i.price,stock:i.quantity,qty:1})}
+ $('bc').value='';render()}
+async function addScan(){const v=$('bc').value.trim();if(v)lookup(v)}
+async function startScan(){$('reader').classList.remove('hide');const s=new Html5Qrcode('reader');try{await s.start({facingMode:'environment'},{fps:10,qrbox:250},async code=>{await s.stop();$('reader').classList.add('hide');lookup(code)})}catch(e){alert('Camera error')}}
+function render(){$('cart').innerHTML=cart.map((c,i)=>`<tr><td>${c.name} <small style="color:#94a3b8">(${c.stock} in stock)</small></td>
+<td><input type="number" min="1" value="${c.qty}" style="width:70px" onchange="cart[${i}].qty=+this.value;render()"></td>
+<td>KSh ${c.price.toFixed(2)}</td><td>KSh ${(c.price*c.qty).toFixed(2)}</td>
+<td><button class=danger onclick="cart.splice(${i},1);render()">✕ remove</button></td></tr>`).join('')||'<tr><td colspan=5>Scan an item to start the bill</td></tr>';
+$('total').textContent=cart.reduce((s,c)=>s+c.price*c.qty,0).toFixed(2)}
+async function pay(){if(!cart.length)return alert('Bill is empty');
+const r=await api('/api/sales',{method:'POST',body:JSON.stringify({customer:cust.value,items:cart.map(c=>({item_id:c.id,qty:c.qty})),mpesa:mpesa.value})});
+if(r&&r.detail)return alert(r.detail);alert((r.stk?r.stk.message+'\n':'')+'Sale #'+r.id+' complete — KSh '+r.total);cart=[];render();cust.value='';mpesa.value=''}
+$('bc').addEventListener('keydown',e=>{if(e.key=='Enter')addScan()});
+</script></body></html>

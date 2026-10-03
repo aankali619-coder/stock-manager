@@ -553,6 +553,9 @@ def sales_page(): return FileResponse(os.path.join(BASE, "static", "sales.html")
 @app.get("/prices")
 def prices_page(): return FileResponse(os.path.join(BASE, "static", "prices.html"))
 
+@app.get("/pos")
+def pos(): return FileResponse(os.path.join(BASE, "static", "pos.html"))
+
 @app.get("/manifest.json")
 def manifest(): return FileResponse(os.path.join(BASE, "static", "manifest.json"), media_type="application/manifest+json")
 
