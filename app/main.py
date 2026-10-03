@@ -99,6 +99,7 @@ class Signup(BaseModel):
     username: str = Field(..., min_length=2, max_length=64)
     password: str = Field(..., min_length=6)
     email: str = ""
+    phone: str = ""
 
 @app.get("/api/config")
 def config():
@@ -108,8 +109,8 @@ def config():
 def signup(b: Signup):
     with conn() as c:
         try:
-            c.execute("INSERT INTO users(username,password_hash,role,created_at,email) VALUES(?,?,?,?,?)",
-                      (b.username, hash_password(b.password), "staff", now(), b.email))
+            c.execute("INSERT INTO users(username,password_hash,role,created_at,email,phone) VALUES(?,?,?,?,?,?)",
+                      (b.username, hash_password(b.password), "staff", now(), b.email, b.phone))
         except Exception:
             raise HTTPException(409, "Username already taken")
         return {"ok": True}

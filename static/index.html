@@ -38,8 +38,10 @@ tr.exp td{color:#f87171}
     <button onclick="login()">Login</button>
   </div>
   <div id="signupForm" class="hide">
-    <input id="su_u" placeholder="Choose username"><input id="su_e" placeholder="Email (optional)">
-    <input id="su_p" type="password" placeholder="Password (min 6)">
+    <input id="su_e" type="email" placeholder="Email" required>
+    <input id="su_u" placeholder="Create username">
+    <input id="su_p" type="password" placeholder="Create password (min 6)">
+    <input id="su_ph" type="tel" placeholder="Phone number">
     <button onclick="signup()">Create account</button>
   </div>
   <hr style="border-color:#334155;margin:14px 0">
@@ -93,7 +95,7 @@ tr.exp td{color:#f87171}
 </main>
 <script>
 function showTab(t){loginForm.classList.toggle('hide',t!='login');signupForm.classList.toggle('hide',t!='signup');tabLogin.className=t=='login'?'':'ghost';tabSignup.className=t=='signup'?'':'ghost'}
-async function signup(){const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:su_u.value,email:su_e.value,password:su_p.value})});
+async function signup(){const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:su_u.value,email:su_e.value,password:su_p.value,phone:su_ph.value})});
  const j=await r.json();if(!r.ok){loginErr.textContent=j.detail;return}suMsg.textContent='Account created! You can log in now.';showTab('login')}
 async function onGoogle(resp){const r=await fetch('/api/google',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_token:resp.credential})});
  const j=await r.json();if(!r.ok){loginErr.textContent=j.detail;return}token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot()}
