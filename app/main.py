@@ -388,8 +388,9 @@ def stk_push(phone, amount, ref):
     except Exception as e:
         return {"mode": "error", "message": str(e)}
 
+from fastapi import Request
 @app.post("/api/mpesa-callback")
-async def mpesa_callback(request):
+async def mpesa_callback(request: Request):
     try:
         data = await request.json()
         print("MPESA CALLBACK:", data)
