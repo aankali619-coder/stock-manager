@@ -99,7 +99,6 @@ async function onGoogle(resp){const r=await fetch('/api/google',{method:'POST',h
  const j=await r.json();if(!r.ok){loginErr.textContent=j.detail;return}token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot()}
 fetch('/api/config').then(r=>r.json()).then(c=>{if(!c.google_client_id)return;let tries=0;const iv=setInterval(()=>{tries++;if(window.google){clearInterval(iv);google.accounts.id.initialize({client_id:c.google_client_id,callback:onGoogle});google.accounts.id.renderButton(document.getElementById('gbtn'),{theme:'outline',size:'large'})}if(tries>20){clearInterval(iv);gbtn.innerHTML='<p style="color:#f87171">Google sign-in failed to load (check internet/ad-blocker).</p>'}},500)});
 let token=localStorage.getItem('tok'), role=localStorage.getItem('role'), lowOnly=false, editId=null, adjId=null, scanner=null;
-const api=(p,o={})=>fetch(p,{...o,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}}).then(r=>r.status==401?(logout(),null):r.json());
 async function login(){const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,password:p.value})});
  if(!r.ok){loginErr.textContent='Login failed';return}const j=await r.json();token=j.token;role=j.role;localStorage.setItem('tok',token);localStorage.setItem('role',role);boot()}
 function logout(){localStorage.clear();location.reload()}
