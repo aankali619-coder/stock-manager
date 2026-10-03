@@ -6,6 +6,7 @@
 <div class="row"><input id="bc" placeholder="Scan barcode or type SKU..."><button onclick="addScan()">Add</button><button class="ghost" onclick="startScan()">📷 Camera</button></div>
 <div id="reader" class="hide" style="max-width:320px"></div>
 <div id="lastScan" style="margin-top:8px;font-weight:bold;color:#4ade80"></div>
+<div id="payInfo" class="hide" style="border:1px solid #4ade80;border-radius:8px;padding:10px;margin-top:8px"></div>
 </div>
 <div class="card"><h3>🧾 Current bill</h3>
 <table><thead><tr><th>Item</th><th>Supplier</th><th>Qty</th><th>Cost</th><th>Unit price (+5%)</th><th>Line total</th><th></th></tr></thead><tbody id="cart"></tbody></table>
@@ -34,6 +35,9 @@ $('cart').innerHTML=cart.map((c,i)=>`<tr><td>${c.name} <small style="color:#94a3
 $('total').textContent=t.toFixed(2);$('profit').textContent=(t-cost).toFixed(2)}
 async function pay(){if(!cart.length)return alert('Bill is empty');
 const r=await api('/api/sales',{method:'POST',body:JSON.stringify({customer:cust.value,items:cart.map(c=>({item_id:c.id,qty:c.qty,price:unitPrice(c)})),mpesa:mpesa.value})});
-if(r&&r.detail)return alert(r.detail);alert((r.stk?r.stk.message+'\n':'')+'Sale #'+r.id+' complete — KSh '+r.total);cart=[];render();cust.value='';mpesa.value=''}
+if(r&&r.detail)return alert(r.detail);
+const box=$('payInfo');box.classList.remove('hide');
+box.innerHTML=`<b>💳 Payment prompt sent to customer</b><br>Customer: ${cust.value||'-'}<br>M-Pesa: ${mpesa.value||'-'}<br>Amount: KSh ${r.total}<br>${r.stk?r.stk.message:''}<br><small style="color:#94a3b8">Customer should enter their M-Pesa PIN on their phone to complete.</small>`;
+cart=[];render();cust.value='';mpesa.value=''}
 $('bc').addEventListener('keydown',e=>{if(e.key=='Enter')addScan()});
 </script></body></html>
