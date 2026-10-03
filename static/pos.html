@@ -3,7 +3,8 @@
 <script src="https://unpkg.com/html5-qrcode"></script></head><body>
 <main><h1>🛒 Checkout — Scan to Sell</h1>
 <div class="card">
-<div class="row"><input id="bc" placeholder="Scan barcode or type SKU..."><button onclick="addScan()">Add</button><button class="ghost" onclick="startScan()">📷 Camera</button></div>
+<div class="row"><input id="bc" placeholder="Scan barcode or type SKU..."><button onclick="addScan()">Add</button><button class="ghost" onclick="startScan()">📷 Camera</button>
+<select id="itemSel" onchange="if(this.value)lookup(this.value);this.value=''"><option value="">— or pick an item from the shop list —</option></select></div>
 <div id="reader" class="hide" style="max-width:320px"></div>
 <div id="lastScan" style="margin-top:8px;font-weight:bold;color:#4ade80"></div>
 <div id="payInfo" class="hide" style="border:1px solid #4ade80;border-radius:8px;padding:10px;margin-top:8px"></div>
@@ -27,6 +28,8 @@ async function lookup(code){const r=await fetch('/api/barcode/'+encodeURICompone
 async function addScan(){const v=$('bc').value.trim();if(v)lookup(v)}
 async function startScan(){$('reader').classList.remove('hide');const s=new Html5Qrcode('reader');try{await s.start({facingMode:'environment'},{fps:10,qrbox:250},async code=>{await s.stop();$('reader').classList.add('hide');lookup(code)})}catch(e){alert('Camera error')}}
 function unitPrice(c){return $('markup').checked&&c.cost>0?c.cost*1.05:c.price}
+async function fillSel(){const r=await api('/api/items');if(!r)return;const sel=$('itemSel');sel.innerHTML='<option value="">— or pick an item from the shop list —</option>'+r.map(i=>`<option value="${i.sku}">${i.name} — ${i.barcode||i.sku} — KSh ${i.price} (${i.quantity} left)</option>`).join('')}
+window.addEventListener('DOMContentLoaded',()=>tok()&&fillSel());
 function render(){const t=cart.reduce((s,c)=>s+unitPrice(c)*c.qty,0);const cost=cart.reduce((s,c)=>s+(c.cost||0)*c.qty,0);
 $('cart').innerHTML=cart.map((c,i)=>`<tr><td>${c.name} <small style="color:#94a3b8">(${c.stock} left)</small></td><td>${c.supplier||'-'}</td>
 <td><input type="number" min="1" value="${c.qty}" style="width:70px" onchange="cart[${i}].qty=+this.value;render()"></td>
