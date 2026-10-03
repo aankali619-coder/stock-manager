@@ -402,7 +402,7 @@ def label(item_id: int):
         r = c.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
         if not r: raise HTTPException(404, "Not found")
     html = f"""<!doctype html><html><head><script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-    <body style="font-family:Arial;text-align:center;padding:20px"><h3>{r['name']}</h3><svg id="b"></svg><p>${r['price']:.2f} — {r['location']}</p><script>JsBarcode("#b","{r['barcode'] or r['sku']}",{{format:"CODE128"}})</script></body></html>"""
+    <body style="font-family:Arial;text-align:center;padding:20px"><h3>{r['name']}</h3><svg id="b"></svg><p>KSh {r['price']:.2f} — {r['location']}</p><script>JsBarcode("#b","{r['barcode'] or r['sku']}",{{format:"CODE128"}})</script></body></html>"""
     from fastapi.responses import HTMLResponse
     return HTMLResponse(html)
 

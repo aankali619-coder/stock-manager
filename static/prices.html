@@ -6,8 +6,8 @@
 <div class="card"><h3>Price change history</h3><table><thead><tr><th>Item</th><th>Old</th><th>New</th><th>When</th></tr></thead><tbody id="hist"></tbody></table></div></main>
 <script>
 async function load(){const r=await api('/api/prices');if(!r)return;
-tb.innerHTML=r.map(i=>`<tr><td>${i.sku}</td><td>${i.name}</td><td>${i.quantity}</td><td>$${(i.cost||0).toFixed(2)}</td><td>$${i.price.toFixed(2)}</td>
+tb.innerHTML=r.map(i=>`<tr><td>${i.sku}</td><td>${i.name}</td><td>${i.quantity}</td><td>KSh ${(i.cost||0).toFixed(2)}</td><td>KSh ${i.price.toFixed(2)}</td>
 <td><input id="p${i.id}" type="number" step="0.01" placeholder="New price" style="width:110px"><input id="c${i.id}" type="number" step="0.01" placeholder="Cost" style="width:90px"><button onclick="setP(${i.id})">Save</button></td></tr>`).join('');
-const h=await api('/api/price-history');hist.innerHTML=(h&&h.length)?h.map(x=>`<tr><td>${x.name} (${x.sku})</td><td>$${(x.old_price||0).toFixed(2)}</td><td>$${x.new_price.toFixed(2)}</td><td>${x.changed_at.slice(0,16).replace('T',' ')}</td></tr>`).join(''):'<tr><td colspan=4>No changes yet</td></tr>'}
+const h=await api('/api/price-history');hist.innerHTML=(h&&h.length)?h.map(x=>`<tr><td>${x.name} (${x.sku})</td><td>KSh ${(x.old_price||0).toFixed(2)}</td><td>KSh ${x.new_price.toFixed(2)}</td><td>${x.changed_at.slice(0,16).replace('T',' ')}</td></tr>`).join(''):'<tr><td colspan=4>No changes yet</td></tr>'}
 async function setP(id){const p=+document.getElementById('p'+id).value,c=+document.getElementById('c'+id).value||0;if(!p)return alert('Enter price');const r=await api(`/api/items/${id}/price`,{method:'POST',body:JSON.stringify({price:p,cost:c})});if(r&&r.detail)return alert(r.detail);load()}
 window.addEventListener('DOMContentLoaded',()=>tok()&&load());</script></body></html>

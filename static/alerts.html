@@ -8,5 +8,5 @@
 window.addEventListener('DOMContentLoaded',async()=>{if(!tok())return;
 const l=await api('/api/items?low=true');low.innerHTML=l&&l.length?l.map(i=>`<tr class="low"><td>${i.sku}</td><td>${i.name}</td><td>${i.quantity}</td><td>${i.min_stock}</td><td>${i.location||''}</td></tr>`).join(''):'<tr><td colspan=5>All good 👍</td></tr>';
 const e=await api('/api/expiring?days=30');exp.innerHTML=e&&e.length?e.map(i=>`<tr class="exp"><td>${i.sku}</td><td>${i.name}</td><td>${i.expiry}</td><td>${i.quantity}</td></tr>`).join(''):'<tr><td colspan=4>Nothing expiring soon 👍</td></tr>';
-const m=await api('/api/missing');miss.innerHTML=m&&m.length?m.map(i=>`<tr><td>${i.sku}</td><td>${i.name}</td><td>$${i.price.toFixed(2)}</td><td>${i.location||''}</td></tr>`).join(''):'<tr><td colspan=4>All items in stock 👍</td></tr>'});
+const m=await api('/api/missing');miss.innerHTML=m&&m.length?m.map(i=>`<tr><td>${i.sku}</td><td>${i.name}</td><td>KSh ${i.price.toFixed(2)}</td><td>${i.location||''}</td></tr>`).join(''):'<tr><td colspan=4>All items in stock 👍</td></tr>'});
 </script></body></html>

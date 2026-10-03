@@ -4,6 +4,6 @@
 <div class="card"><table><thead><tr><th>Location</th><th>Items</th><th>Units</th><th>Stock value</th></tr></thead><tbody id="tb"></tbody></table></div></main>
 <script>
 async function load(){const r=await api('/api/warehouses');if(!r)return;
-g.innerHTML=r.map(w=>`<div class="stat"><b>${w.location}</b>${w.items} items · ${w.units} units<br>$${w.value.toFixed(2)}</div>`).join('');
-tb.innerHTML=r.map(w=>`<tr><td>${w.location}</td><td>${w.items}</td><td>${w.units}</td><td>$${w.value.toFixed(2)}</td></tr>`).join('')}
+g.innerHTML=r.map(w=>`<div class="stat"><b>${w.location}</b>${w.items} items · ${w.units} units<br>KSh ${w.value.toFixed(2)}</div>`).join('');
+tb.innerHTML=r.map(w=>`<tr><td>${w.location}</td><td>${w.items}</td><td>${w.units}</td><td>KSh ${w.value.toFixed(2)}</td></tr>`).join('')}
 window.addEventListener('DOMContentLoaded',()=>tok()&&load());</script></body></html>
