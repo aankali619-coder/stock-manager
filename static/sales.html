@@ -2,16 +2,16 @@
 <title>Sales</title><link rel="stylesheet" href="/static/app.css"><script src="/static/common.js"></script></head><body>
 <main><h1>💰 Sales / Invoices</h1>
 <div class="card"><h3>New sale</h3>
-<input id="cust" placeholder="Customer name"><br><br>
+<input id="cust" placeholder="Customer name"> <input id="mpesa" placeholder="Customer M-Pesa number (to pay)"><br><br>
 <select id="item"></select><input id="qty" type="number" placeholder="Qty" style="width:80px"><button class="ghost" onclick="addLine()">+ line</button>
 <table><thead><tr><th>Item</th><th>Qty</th><th></th></tr></thead><tbody id="lines"></tbody></table>
 <button onclick="create()">Create sale</button></div>
-<div class="card"><h3>Sales history</h3><table><thead><tr><th>#</th><th>Customer</th><th>Total</th><th>Date</th><th>Items</th></tr></thead><tbody id="tb"></tbody></table></div></main>
+<div class="card"><h3>Sales history</h3><table><thead><tr><th>#</th><th>Customer</th><th>M-Pesa</th><th>Total</th><th>Date</th><th>Items</th></tr></thead><tbody id="tb"></tbody></table></div></main>
 <script>
 let cart=[];
 async function load(){const it=await api('/api/items');item.innerHTML=it.map(x=>`<option value="${x.id}">${x.name} (KSh ${x.price}) — ${x.quantity} left</option>`).join('');
-const r=await api('/api/sales');tb.innerHTML=r.map(s=>`<tr><td>#${s.id}</td><td>${s.customer||'-'}</td><td>KSh ${s.total.toFixed(2)}</td><td>${s.created_at.slice(0,10)}</td><td>${s.items.map(i=>i.name+'×'+i.qty).join(', ')}</td></tr>`).join('')||'<tr><td colspan=5>No sales</td></tr>'}
+const r=await api('/api/sales');tb.innerHTML=r.map(s=>`<tr><td>#${s.id}</td><td>${s.customer||'-'}</td><td>${s.mpesa||'-'}</td><td>KSh ${s.total.toFixed(2)}</td><td>${s.created_at.slice(0,10)}</td><td>${s.items.map(i=>i.name+'×'+i.qty).join(', ')}</td></tr>`).join('')||'<tr><td colspan=5>No sales</td></tr>'}
 function addLine(){const o=item.options[item.selectedIndex];cart.push({item_id:+o.value,name:o.textContent.split(' (')[0],qty:+qty.value});renderCart()}
 function renderCart(){lines.innerHTML=cart.map((l,i)=>`<tr><td>${l.name}</td><td>${l.qty}</td><td><button class=danger onclick="cart.splice(${i},1);renderCart()">×</button></td></tr>`).join('')}
-async function create(){if(!cart.length)return alert('Add items');const r=await api('/api/sales',{method:'POST',body:JSON.stringify({customer:cust.value,items:cart})});if(r&&r.detail)return alert(r.detail);alert('Sale #'+r.id+' — Total KSh'+r.total);cart=[];renderCart();cust.value='';load()}
+async function create(){if(!cart.length)return alert('Add items');const r=await api('/api/sales',{method:'POST',body:JSON.stringify({customer:cust.value,items:cart,mpesa:mpesa.value})});if(r&&r.detail)return alert(r.detail);alert((r.stk?r.stk.message+'\n':'')+'Sale #'+r.id+' — Total KSh'+r.total);cart=[];renderCart();cust.value='';mpesa.value='';load()}
 window.addEventListener('DOMContentLoaded',()=>tok()&&load());</script></body></html>

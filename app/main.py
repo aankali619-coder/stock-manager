@@ -132,6 +132,8 @@ def signup(b: Signup):
         raise HTTPException(400, "Security PIN must be exactly 6 digits")
     if b.phone and not re.fullmatch(r"(\+?254|0)?[17]\d{8}", b.phone.strip().replace(" ", "")):
         raise HTTPException(400, "Invalid phone number: use Kenyan format e.g. 0712345678")
+    if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]{4,19}", b.username):
+        raise HTTPException(400, "Weak username: 5-20 chars, start with a letter, only letters/numbers/underscore")
     if b.mpesa and not valid_mpesa(b.mpesa):
         raise HTTPException(400, "Invalid M-Pesa number: use a Kenyan phone (07XXXXXXXX) or a Till/Paybill shortcode (5-7 digits)")
     with conn() as c:
@@ -284,7 +286,7 @@ class PoIn(BaseModel):
 class SaleItem(BaseModel):
     item_id: int; qty: int = Field(..., gt=0)
 class SaleIn(BaseModel):
-    customer: str = ""; items: list[SaleItem]
+    customer: str = ""; items: list[SaleItem]; mpesa: str = ""
 class SupplierIn(BaseModel):
     name: str = Field(..., min_length=1); contact: str = ""
 
@@ -350,18 +352,41 @@ def add_sale(b: SaleIn, u=Depends(current_user)):
             if not r: raise HTTPException(404, f"Item {it.item_id} not found")
             if it.qty > r["quantity"]: raise HTTPException(400, f"Not enough stock for {r['name']}")
             total += it.qty * r["price"]
-        cur = c.execute("INSERT INTO sales(customer,total,created_at) VALUES(?,?,?)", (b.customer, round(total,2), now()))
+        cur = c.execute("INSERT INTO sales(customer,total,created_at,mpesa) VALUES(?,?,?,?)", (b.customer, round(total,2), now(), b.mpesa))
         for it in b.items:
             r = c.execute("SELECT price FROM items WHERE id=?", (it.item_id,)).fetchone()
             c.execute("INSERT INTO sale_items(sale_id,item_id,qty,price) VALUES(?,?,?,?)", (cur.lastrowid, it.item_id, it.qty, r["price"]))
             c.execute("UPDATE items SET quantity=quantity-? WHERE id=?", (it.qty, it.item_id))
             c.execute("INSERT INTO transactions(item_id,user_id,type,qty_change,note,created_at) VALUES(?,?,?,?,?,?)",
                       (it.item_id, u["id"], "out", -it.qty, f"Sale #{cur.lastrowid}", now()))
-        return {"id": cur.lastrowid, "total": round(total,2)}
+        stk = stk_push(b.mpesa, total, cur.lastrowid) if b.mpesa else None
+        return {"id": cur.lastrowid, "total": round(total,2), "stk": stk}
 
 class PriceIn(BaseModel):
     price: float = Field(..., ge=0)
     cost: float = Field(0, ge=0)
+
+def stk_push(phone, amount, ref):
+    import os, base64, datetime, requests
+    key, secret, shortcode, passkey = (os.environ.get(v, "") for v in ("DARAJA_CONSUMER_KEY","DARAJA_CONSUMER_SECRET","DARAJA_SHORTCODE","DARAJA_PASSKEY"))
+    if not all([key, secret, shortcode, passkey]):
+        return {"mode": "manual", "message": f"Ask customer to pay KSh {amount} to M-Pesa {phone} (STK push API not configured)."}
+    try:
+        t = requests.get("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", auth=(key, secret), timeout=10).json()["access_token"]
+        ts = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        pwd = base64.b64encode(f"{shortcode}{passkey}{ts}".encode()).decode()
+        msisdn = phone.strip().replace("+", "").replace(" ", "")
+        if msisdn.startswith("0"): msisdn = "254" + msisdn[1:]
+        r = requests.post("https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+            headers={"Authorization": f"Bearer {t}"}, json={
+                "BusinessShortCode": shortcode, "Password": pwd, "Timestamp": ts,
+                "TransactionType": "CustomerPayBillOnline", "Amount": int(amount),
+                "PartyA": msisdn, "PartyB": shortcode, "PhoneNumber": msisdn,
+                "CallBackURL": os.environ.get("DARAJA_CALLBACK", "https://example.com/cb"),
+                "AccountReference": f"Sale{ref}", "TransactionDesc": f"Sale {ref}"}, timeout=15)
+        return {"mode": "stk", "message": r.json().get("CustomerMessage", "STK push sent — check your phone.")}
+    except Exception as e:
+        return {"mode": "error", "message": str(e)}
 
 @app.get("/api/missing")
 def missing(u=Depends(current_user)):

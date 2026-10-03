@@ -103,6 +103,10 @@ def init_db():
                          ("expiry", "ALTER TABLE items ADD COLUMN expiry TEXT DEFAULT ''")]:
             try: c.execute(ddl)
             except Exception: pass
+        try:
+            c.execute("ALTER TABLE sales ADD COLUMN mpesa TEXT DEFAULT ''")
+        except Exception:
+            pass
         row = c.execute("SELECT id FROM users WHERE username='admin'").fetchone()
         if not row:
             ph = bcrypt.hashpw(b"admin123", bcrypt.gensalt())
