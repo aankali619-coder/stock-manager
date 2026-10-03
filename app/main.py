@@ -534,6 +534,9 @@ def features(): return FileResponse(os.path.join(BASE, "pages", "features.html")
 @app.get("/help")
 def help_(): return FileResponse(os.path.join(BASE, "pages", "help.html"))
 
+@app.get("/copyright")
+def copyright(): return FileResponse(os.path.join(BASE, "static", "copyright.html"))
+
 @app.get("/items-page")
 def items_page(): return FileResponse(os.path.join(BASE, "static", "items.html"))
 
