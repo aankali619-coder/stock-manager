@@ -284,7 +284,7 @@ class PoItem(BaseModel):
 class PoIn(BaseModel):
     supplier_id: int; items: list[PoItem]
 class SaleItem(BaseModel):
-    item_id: int; qty: int = Field(..., gt=0)
+    item_id: int; qty: int = Field(..., gt=0); price: float = -1
 class SaleIn(BaseModel):
     customer: str = ""; items: list[SaleItem]; mpesa: str = ""
 class SupplierIn(BaseModel):
@@ -346,16 +346,17 @@ def sales_list(u=Depends(current_user)):
 @app.post("/api/sales")
 def add_sale(b: SaleIn, u=Depends(current_user)):
     with conn() as c:
-        total = 0
         for it in b.items:
             r = c.execute("SELECT * FROM items WHERE id=?", (it.item_id,)).fetchone()
             if not r: raise HTTPException(404, f"Item {it.item_id} not found")
             if it.qty > r["quantity"]: raise HTTPException(400, f"Not enough stock for {r['name']}")
-            total += it.qty * r["price"]
+            unit = it.price if it.price and it.price >= 0 else r["price"]
+            total += it.qty * unit
         cur = c.execute("INSERT INTO sales(customer,total,created_at,mpesa) VALUES(?,?,?,?)", (b.customer, round(total,2), now(), b.mpesa))
         for it in b.items:
             r = c.execute("SELECT price FROM items WHERE id=?", (it.item_id,)).fetchone()
-            c.execute("INSERT INTO sale_items(sale_id,item_id,qty,price) VALUES(?,?,?,?)", (cur.lastrowid, it.item_id, it.qty, r["price"]))
+            unit = it.price if it.price and it.price >= 0 else r["price"]
+            c.execute("INSERT INTO sale_items(sale_id,item_id,qty,price) VALUES(?,?,?,?)", (cur.lastrowid, it.item_id, it.qty, unit))
             c.execute("UPDATE items SET quantity=quantity-? WHERE id=?", (it.qty, it.item_id))
             c.execute("INSERT INTO transactions(item_id,user_id,type,qty_change,note,created_at) VALUES(?,?,?,?,?,?)",
                       (it.item_id, u["id"], "out", -it.qty, f"Sale #{cur.lastrowid}", now()))
