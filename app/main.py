@@ -13,7 +13,12 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app = FastAPI(title="Stock Manager")
 
 class Login(BaseModel):
-    username: str; password: str
+    username: str; password: str; pin: str = ""
+
+def strong_password(p):
+    import re
+    return (len(p) >= 8 and re.search(r"[A-Z]", p) and re.search(r"[a-z]", p)
+            and re.search(r"\d", p) and re.search(r"[^A-Za-z0-9]", p))
 
 class ItemIn(BaseModel):
     sku: str = Field(..., min_length=1, max_length=64)
@@ -100,6 +105,8 @@ class Signup(BaseModel):
     password: str = Field(..., min_length=6)
     email: str = ""
     phone: str = ""
+    pin: str = ""
+    confirm: str = ""
 
 @app.get("/api/config")
 def config():
@@ -107,10 +114,16 @@ def config():
 
 @app.post("/api/signup")
 def signup(b: Signup):
+    if b.confirm and b.confirm != b.password:
+        raise HTTPException(400, "Passwords do not match")
+    if not strong_password(b.password):
+        raise HTTPException(400, "Weak password: use 8+ chars with upper, lower, number and symbol")
+    if b.pin and not (b.pin.isdigit() and len(b.pin) == 6):
+        raise HTTPException(400, "Security PIN must be exactly 6 digits")
     with conn() as c:
         try:
-            c.execute("INSERT INTO users(username,password_hash,role,created_at,email,phone) VALUES(?,?,?,?,?,?)",
-                      (b.username, hash_password(b.password), "staff", now(), b.email, b.phone))
+            c.execute("INSERT INTO users(username,password_hash,role,created_at,email,phone,pin_hash) VALUES(?,?,?,?,?,?,?)",
+                      (b.username, hash_password(b.password), "staff", now(), b.email, b.phone, hash_password(b.pin).decode() if b.pin else ""))
         except Exception:
             raise HTTPException(409, "Username already taken")
         return {"ok": True}
@@ -146,6 +159,13 @@ def login(b: Login):
         row = c.execute("SELECT * FROM users WHERE username=?", (b.username,)).fetchone()
         if not row or not check_password(b.password, row["password_hash"]):
             raise HTTPException(401, "Bad credentials")
+        stored_pin = row["pin_hash"] if "pin_hash" in row.keys() else ""
+        if stored_pin:
+            if not b.pin:
+                raise HTTPException(401, "Security PIN required")
+            import bcrypt as _b
+            if not _b.checkpw(b.pin.encode(), stored_pin.encode() if isinstance(stored_pin, str) else stored_pin):
+                raise HTTPException(401, "Wrong PIN")
         token = new_token()
         c.execute("INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)", (token, row["id"], now()))
         return {"token": token, "username": row["username"], "role": row["role"], "seen_tutorial": row["seen_tutorial"] if "seen_tutorial" in row.keys() else 0}
