@@ -93,6 +93,10 @@ def init_db():
             c.execute("ALTER TABLE users ADD COLUMN pin_hash TEXT DEFAULT ''")
         except Exception:
             pass
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN mpesa TEXT DEFAULT ''")
+        except Exception:
+            pass
         for col, ddl in [("cost", "ALTER TABLE items ADD COLUMN cost REAL DEFAULT 0"),
                          ("supplier", "ALTER TABLE items ADD COLUMN supplier TEXT DEFAULT ''"),
                          ("batch", "ALTER TABLE items ADD COLUMN batch TEXT DEFAULT ''"),

@@ -20,6 +20,15 @@ def strong_password(p):
     return (len(p) >= 8 and re.search(r"[A-Z]", p) and re.search(r"[a-z]", p)
             and re.search(r"\d", p) and re.search(r"[^A-Za-z0-9]", p))
 
+import re
+def valid_mpesa(v):
+    v = v.strip().replace(" ", "")
+    if re.fullmatch(r"(\+?254|0)?[17]\d{8}", v):  # Kenyan mobile e.g. 0712345678, +2547...
+        return True
+    if re.fullmatch(r"\d{5,7}", v):  # M-Pesa Till / Paybill shortcode
+        return True
+    return False
+
 class ItemIn(BaseModel):
     sku: str = Field(..., min_length=1, max_length=64)
     name: str = Field(..., min_length=1, max_length=200)
@@ -107,6 +116,7 @@ class Signup(BaseModel):
     phone: str = ""
     pin: str = ""
     confirm: str = ""
+    mpesa: str = ""
 
 @app.get("/api/config")
 def config():
@@ -120,10 +130,14 @@ def signup(b: Signup):
         raise HTTPException(400, "Weak password: use 8+ chars with upper, lower, number and symbol")
     if b.pin and not (b.pin.isdigit() and len(b.pin) == 6):
         raise HTTPException(400, "Security PIN must be exactly 6 digits")
+    if b.phone and not re.fullmatch(r"(\+?254|0)?[17]\d{8}", b.phone.strip().replace(" ", "")):
+        raise HTTPException(400, "Invalid phone number: use Kenyan format e.g. 0712345678")
+    if b.mpesa and not valid_mpesa(b.mpesa):
+        raise HTTPException(400, "Invalid M-Pesa number: use a Kenyan phone (07XXXXXXXX) or a Till/Paybill shortcode (5-7 digits)")
     with conn() as c:
         try:
-            c.execute("INSERT INTO users(username,password_hash,role,created_at,email,phone,pin_hash) VALUES(?,?,?,?,?,?,?)",
-                      (b.username, hash_password(b.password), "staff", now(), b.email, b.phone, hash_password(b.pin).decode() if b.pin else ""))
+            c.execute("INSERT INTO users(username,password_hash,role,created_at,email,phone,pin_hash,mpesa) VALUES(?,?,?,?,?,?,?,?)",
+                      (b.username, hash_password(b.password), "staff", now(), b.email, b.phone, hash_password(b.pin).decode() if b.pin else "", b.mpesa))
         except Exception:
             raise HTTPException(409, "Username already taken")
         return {"ok": True}
