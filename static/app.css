@@ -1,6 +1,6 @@
 *{box-sizing:border-box;font-family:system-ui,Arial,sans-serif}
 body{margin:0;background:#0f172a;color:#e2e8f0}
-nav{background:#1e293b;padding:10px 16px;display:flex;gap:14px;align-items:center;flex-wrap:nowrap;overflow-x:auto}
+nav{background:#1e293b;padding:10px 16px;display:flex;flex-direction:column;gap:4px;align-items:stretch;max-width:200px}
 nav a{color:#cbd5e1;text-decoration:none;padding:6px 10px;border-radius:8px}
 nav a.on,nav a:hover{background:#334155;color:#fff}
 nav b{color:#fff;margin-right:auto}
