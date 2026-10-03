@@ -92,7 +92,12 @@ tr.exp td{color:#f87171}
     <div class="row"><button onclick="doAdjust()">Apply</button><button class="ghost" onclick="document.getElementById('adjust').classList.add('hide')">Cancel</button></div>
   </div>
 </div>
-</main>
+
+  <hr style="margin-top:30px;border-color:#334155">
+  <div style="font-size:12px;color:#78787c;text-align:center;padding-top:10px">
+    &copy; 2026 Stock Manager – Inventory Management System<br>
+    Built with FastAPI &bull; Deployed on Vercel
+  </div></main>
 <script>
 let token=localStorage.getItem('tok'), role=localStorage.getItem('role'), lowOnly=false, editId=null, adjId=null, scanner=null;
 function logout(){localStorage.clear();location.reload()}
