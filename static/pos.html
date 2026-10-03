@@ -5,6 +5,7 @@
 <div class="card">
 <div class="row"><input id="bc" placeholder="Scan barcode or type SKU..."><button onclick="addScan()">Add</button><button class="ghost" onclick="startScan()">📷 Camera</button></div>
 <div id="reader" class="hide" style="max-width:320px"></div>
+<div id="lastScan" style="margin-top:8px;font-weight:bold;color:#4ade80"></div>
 </div>
 <div class="card"><h3>🧾 Current bill</h3>
 <table><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Line total</th><th></th></tr></thead><tbody id="cart"></tbody></table>
@@ -19,6 +20,7 @@ let cart=[];
 const $=(i)=>document.getElementById(i);
 async function lookup(code){const r=await fetch('/api/barcode/'+encodeURIComponent(code),{headers:{'Authorization':'Bearer '+tok()}});if(!r.ok)return alert('Item not found: '+code);const i=await r.json();
  if(cart.find(c=>c.id==i.id)){cart.find(c=>c.id==i.id).qty++}else{cart.push({id:i.id,name:i.name,price:i.price,stock:i.quantity,qty:1})}
+ $('lastScan').textContent='✅ '+i.name+' — KSh '+i.price.toFixed(2)+' ('+i.quantity+' in stock)';
  $('bc').value='';render()}
 async function addScan(){const v=$('bc').value.trim();if(v)lookup(v)}
 async function startScan(){$('reader').classList.remove('hide');const s=new Html5Qrcode('reader');try{await s.start({facingMode:'environment'},{fps:10,qrbox:250},async code=>{await s.stop();$('reader').classList.add('hide');lookup(code)})}catch(e){alert('Camera error')}}
