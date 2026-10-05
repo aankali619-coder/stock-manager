@@ -12,7 +12,7 @@ let cart=[];
 async function load(){const s=await api('/api/suppliers');sup.innerHTML=s.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
 const it=await api('/api/items');item.innerHTML=it.map(x=>`<option value="${x.id}" data-sku="${x.sku}">${x.name}</option>`).join('');
 const r=await api('/api/pos');tb.innerHTML=r.map(p=>`<tr><td>#${p.id}</td><td>${p.supplier}</td><td>${p.status=='received'?'✅ received':'⏳ pending'}</td><td>${p.created_at.slice(0,10)}</td><td>${p.items.map(i=>i.name+'×'+i.qty).join(', ')}</td><td>${p.status=='pending'?`<button onclick="recv(${p.id})">Receive</button>`:''}</td></tr>`).join('')||'<tr><td colspan=6>No orders</td></tr>'}
-function addLine(){const o=item.options[item.selectedIndex];cart.push({item_id:+o.value,name:o.textContent,qty:+qty.value,price:+price.value||0});renderCart()
+function addLine(){const o=item.options[item.selectedIndex];cart.push({item_id:+o.value,name:o.textContent,qty:+qty.value,price:+price.value||0});renderCart()}
 function renderCart(){lines.innerHTML=cart.map((l,i)=>`<tr><td>${l.name}</td><td>${l.qty}</td><td>KSh ${l.price.toFixed(2)}</td><td><button class=danger onclick="cart.splice(${i},1);renderCart()">×</button></td></tr>`).join('')}
 async function create(){if(!cart.length)return alert('Add items first');const r=await api('/api/pos',{method:'POST',body:JSON.stringify({supplier_id:+sup.value,items:cart})});if(r&&r.detail)return alert(r.detail);cart=[];renderCart();load()}
 async function recv(id){if(!confirm('Mark received and add to stock?'))return;const r=await api(`/api/pos/${id}/receive`,{method:'POST'});if(r&&r.detail)return alert(r.detail);load()}

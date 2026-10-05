@@ -1,194 +1,113 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Stock Manager</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/static/app.css">
-  <meta name="theme-color" content="#0f172a">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="StockManager">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard · Stock Manager</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="StockManager">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/static/common.js"></script>
 </head>
 <body>
-  <nav>
-    <b>📦 StockManager</b>
-    <a href="/" class="on">Dashboard</a>
-    <a href="/items-page">Items</a>
-    <a href="/movements">Movements</a>
-    <a href="/warehouses">Warehouses</a>
-    <a href="/alerts">Alerts</a>
-    <a href="/reports">Reports</a>
-    <a href="/suppliers">Suppliers</a>
-    <a href="/purchases">Purchases</a>
-    <a href="/sales-page">Sales</a>
-    <a href="/users-page">Users</a>
-    <span style="margin-left:auto;color:#78787c;font-size:12px;">@ 2026</a>
-    <a href="/logout" style="color:#78787c;">Logout</a>
-  </nav>
-  <main style="margin-left:260px;padding:20px;min-height:100vh">
-    <div id="features" style="display:none;padding:12px;background:#334155;border-radius:8px;margin-bottom:12px;">
-      <h3>Features</h3>
-    </div>
-    <div id="stats" class="stats"></div>
-    <div id="app-content"></div>
-  </main>
+<main>
+  <h1>📊 Dashboard</h1>
 
-  <script>
-    // Check authentication status on startup
-    const token = localStorage.getItem('tok');
-    const role = localStorage.getItem('role');
-    
-    // If no token, redirect to login page
-    if (!token) {
-      window.location.href = '/login';
-    }
-    
-    // If token exists, initialize the dashboard
-    const features = ['Alerts','Checkout','Charts','Dashboard','Expiry/Batch Tracking','Item Details','Low Stock','M-Pesa Payments','Price History','POS','Reports','Sales','Search','Stock Value','Suppliers','Warehouse','Users'];
-    const ft = document.getElementById('features');
-    ft.innerHTML = '<h3>Features</h3>' + features.map(f => '<div><input type="checkbox" id="f_'+f.toLowerCase()+'" disabled/><label for="f_'+f.toLowerCase()+'">'+f+'</label></div>').join('');
-    
-    const today = () => new Date().toISOString().slice(0, 10);
-    
-    async function loadStats() {
-      const api = (p, o = {}) => fetch(p, { ...o, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } }).then(r => r.status === 401 ? () => { localStorage.clear(); window.location.href = '/login' } : r.json());
-      const s = await api('/api/stats');
-      if (!s) return;
-      document.getElementById('stats').innerHTML = '<div class="stat"><b>' + s.items + '</b>items</div>' + '<div class="stat"><b>' + s.units + '</b>units</div>' + '<div class="stat"><b>KSh ' + s.value + '</b>value</div>' + '<div class="stat" style="color:#4ade80"><b>KSh ' + s.profit + '</b>profit</div>' + '<div class="stat" style="color:#fbbf24"><b>' + s.low_stock + '</b>low stock</div>';
-      const c = await api('/api/charts');
-      if (c) {
-        const ctx = document.getElementById('chart');
-        if (window._ch) window._ch.destroy();
-        window._ch = new Chart(ctx, { type: 'bar', data: { labels: c.by_category.map(x => x.category || '(none)'), datasets: [{ label: 'Value ($)', data: c.by_category.map(x => x.value), backgroundColor: '#3b82f6' }] }, options: { plugins: { legend: { labels: { color: '#e2e8f0' } } }, scales: { x: { ticks: { color: '#e2e8f0' } }, y: { ticks: { color: '#e2e8f0' } } } });
+  <div class="stats" id="stats">
+    <div class="stat"><b>—</b><span>items</span></div>
+    <div class="stat"><b>—</b><span>units</span></div>
+    <div class="stat"><b>KSh —</b><span>stock value</span></div>
+    <div class="stat"><b>KSh —</b><span>potential profit</span></div>
+    <div class="stat"><b>—</b><span>low stock</span></div>
+  </div>
+
+  <div class="card">
+    <h3>All features (A–Z)</h3>
+    <div class="features-grid" id="features"></div>
+  </div>
+
+  <div class="card">
+    <h3>Stock value by category (KSh)</h3>
+    <canvas id="chart" height="110"></canvas>
+    <p id="chartEmpty" class="hide" style="color:#666">No items yet — add items to see the chart.</p>
+  </div>
+
+  <div class="card">
+    <h3>Quick actions</h3>
+    <div class="row">
+      <button onclick="location.href='/items-page'">+ Add item</button>
+      <button class="secondary" onclick="location.href='/pos'">🧾 Checkout / Scan to sell</button>
+      <button class="secondary" onclick="location.href='/sales-page'">💰 Sales</button>
+      <button class="secondary" onclick="location.href='/alerts'">🚨 Alerts</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Notes</h3>
+    <p>👥 <b>Promote customers:</b> capture every sale in the POS so customers keep coming back — record their phone number at checkout for M-Pesa receipts.</p>
+    <p>📷 <b>Scanner:</b> use the barcode scanner on Items or Checkout to add and sell stock instantly — no typing needed.</p>
+    <p>🧾 <b>Receipts:</b> print a receipt after every sale (POS → Print) and print shelf labels from Items → 🖨 for barcode scanning.</p>
+    <p>💲 <b>Prices:</b> supplier cost is auto-marked up 5% — edit prices anytime from the Prices page; history is kept.</p>
+  </div>
+
+  <p style="color:#666;font-size:12px"><a href="/copyright">© 2026 Stock Manager</a> · <a href="/about">About</a> · <a href="/help">Help</a></p>
+</main>
+
+<script>
+if (!tok()) location.replace('/login');
+
+const FEATURES = ['Alerts','Barcode Scanning','Charts','Checkout','Dashboard','Expiry / Batch Tracking','Item Details','Low Stock','M-Pesa Payments','POS','Price History','Promote Customers','Receipt Printing','Reports','Sales','Search','Stock Value','Suppliers','Users','Warehouse'];
+
+document.getElementById('features').innerHTML = FEATURES.map(f =>
+  '<label class="feature-item"><input type="checkbox" checked disabled> ' + f + '</label>').join('');
+
+function renderStats(s) {
+  document.getElementById('stats').innerHTML =
+    '<div class="stat"><b>' + s.items + '</b><span>items</span></div>' +
+    '<div class="stat"><b>' + s.units + '</b><span>units</span></div>' +
+    '<div class="stat"><b>KSh ' + Number(s.value).toLocaleString('en-KE', {minimumFractionDigits: 2}) + '</b><span>stock value</span></div>' +
+    '<div class="stat"><b>KSh ' + Number(s.profit).toLocaleString('en-KE', {minimumFractionDigits: 2}) + '</b><span>potential profit</span></div>' +
+    '<div class="stat"><b>' + s.low_stock + '</b><span>low stock</span></div>';
+}
+
+async function loadStats() {
+  const s = await api('/api/stats');
+  if (s && !s.detail) renderStats(s);
+}
+
+async function loadChart() {
+  const c = await api('/api/charts');
+  if (!c || !c.by_category) return;
+  const cats = c.by_category;
+  document.getElementById('chartEmpty').classList.toggle('hide', cats.length > 0);
+  if (!cats.length) return;
+  const ctx = document.getElementById('chart');
+  if (window._ch) window._ch.destroy();
+  window._ch = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: cats.map(x => x.category || '(uncategorised)'),
+      datasets: [{ label: 'Value (KSh)', data: cats.map(x => x.value), backgroundColor: '#1a73e8' }]
+    },
+    options: {
+      plugins: { legend: { labels: { color: '#e8e8e8' } } },
+      scales: {
+        x: { ticks: { color: '#888' }, grid: { color: '#2a2a3e' } },
+        y: { ticks: { color: '#888' }, grid: { color: '#2a2a3e' } }
       }
     }
-    
-    async function loadItems() {
-      const q = document.getElementById('search').value;
-      const loc = document.getElementById('locFilter').value;
-      const list = await api('/api/items?q=' + encodeURIComponent(q) + (lowOnly ? '&low=true' : '') + (loc ? '&location=' + encodeURIComponent(loc) : ''));
-      if (!list) return;
-      const expired = today();
-      document.getElementById('items').innerHTML = list.map(i => {
-        const isExpired = i.expiry && i.expiry <= today();
-        return '<tr class="' + (i.quantity <= i.min_stock ? 'low' : '') + (isExpired ? ' exp' : '') + '"><td>' + i.sku + '</td><td>' + i.name + '</td><td>KSh ' + i.price.toFixed(2) + '</td><td>KSh ' + (i.cost || 0).toFixed(2) + '</td><td>' + i.quantity + '</td><td>' + i.location || '' + '</td><td>' + i.expiry || '' + (isExpired ? ' ⚠️' : '') + '</td><td><button class="ghost" onclick="edit(' + i.id + ')">✏️</button> <button class="ghost" onclick="openAdjust(' + i.id + ', '' + i.name + '')'>±</button> <button class="ghost" onclick="window.open('/label/' + i.id, '_blank')">🖨</button>' + ('admin' === role ? '<button class="danger" onclick="del(' + i.id + ')">🗑</button>' : '') + '</td></tr>';
-      }).join('');
-    }
-    
-    async function loadLocations() {
-      const l = await api('/api/locations');
-      if (!l) return;
-      const f = document.getElementById('locFilter');
-      const existing = [...f.options].map(o => o.value);
-      l.forEach(x => {
-        if (!existing.includes(x)) {
-          const o = document.createElement('option');
-          o.value = x;
-          o.textContent = x;
-          f.appendChild(o);
-        }
-      });
-    }
-    
-    function toggleLow() {
-      lowOnly = !lowOnly;
-      document.getElementById('lowBtn').textContent = lowOnly ? 'Show all' : 'Show low stock';
-      loadItems();
-    }
-    
-    function showForm() {
-      document.getElementById('form').classList.remove('hide');
-      ['f_sku', 'f_name', 'f_category', 'f_barcode', 'f_price', 'f_cost', 'f_qty', 'f_min', 'f_loc', 'f_sup', 'f_batch', 'f_exp'].forEach(id => document.getElementById(id).value = '');
-    }
-    
-    function hideForm() {
-      document.getElementById('form').classList.add('hide');
-    }
-    
-    function edit(id) {
-      const r = await api('/api/items/' + id);
-      const i = r.item;
-      document.getElementById('formTitle').textContent = 'Edit ' + i.name;
-      ['sku', 'name', 'category', 'barcode', 'price', 'cost', 'loc', 'sup', 'batch', 'exp'].forEach(k => document.getElementById('f_' + k).value = i[k === 'loc' ? 'location' : k === 'sup' ? 'supplier' : k === 'exp' ? 'expiry' : k] || '');
-      document.getElementById('f_qty').value = i.quantity;
-      document.getElementById('f_min').value = i.min_stock;
-    }
-    
-    async function save() {
-      const body = {
-        sku: document.getElementById('f_sku').value,
-        name: document.getElementById('f_name').value,
-        category: document.getElementById('f_category').value,
-        barcode: document.getElementById('f_barcode').value,
-        price: parseFloat(document.getElementById('f_price').value) || 0,
-        cost: parseFloat(document.getElementById('f_cost').value) || 0,
-        quantity: parseInt(document.getElementById('f_qty').value) || 0,
-        min_stock: parseInt(document.getElementById('f_min').value) || 0,
-        location: document.getElementById('f_loc').value,
-        supplier: document.getElementById('f_sup').value,
-        batch: document.getElementById('f_batch').value,
-        expiry: document.getElementById('f_exp').value
-      };
-      const r = await api(editId ? '/api/items/' + editId : '/api/items', { method: editId ? 'PUT' : 'POST', body: JSON.stringify(body) });
-      if (r && r.detail) return alert(r.detail);
-      hideForm();
-      loadItems();
-      loadStats();
-    }
-    
-    function del(id) {
-      if (!confirm('Delete?')) return;
-      api('/api/items/' + id, { method: 'DELETE' }).then(loadItems).then(loadStats);
-    }
-    
-    function openAdjust(id, name) {
-      document.getElementById('adjTitle').textContent = 'Adjust: ' + name;
-      document.getElementById('adjust').classList.remove('hide');
-    }
-    
-    async function doAdjust() {
-      const r = await api('/api/items/' + adjId + '/adjust', { method: 'POST', body: JSON.stringify({ type: a_type.value, qty: +a_qty.value, note: a_note.value }) });
-      if (r && r.detail) return alert(r.detail);
-      document.getElementById('adjust').classList.add('hide');
-      a_qty.value = '';
-      a_note.value = '';
-      loadItems();
-      loadStats();
-    }
-    
-    function scan() {
-      document.getElementById('reader').classList.remove('hide');
-      const scanner = new Html5Qrcode('reader');
-      scanner.start({ facingMode: 'environment', fps: 10, qrbox: 250 }, async code => {
-        await scanner.stop();
-        document.getElementById('reader').classList.add('hide');
-        const r = await fetch('/api/barcode/' + encodeURIComponent(code), { headers: { 'Authorization': 'Bearer ' + token } });
-        if (r.ok) {
-          const i = await r.json();
-          document.getElementById('search').value = i.sku;
-          loadItems();
-        } else alert('Item not found: ' + code);
-      }).catch(e => alert('Camera error'));
-    }
-    
-    function exportCSV() {
-      api('/api/items/export.csv', { headers: { 'Authorization': 'Bearer ' + token } }).then(r => r.blob()).then(b => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(b);
-        a.download = 'items.csv';
-        a.click();
-      });
-    }
-    
-    let lowOnly = false;
-    loadStats();
-    loadItems();
-    loadLocations();
-  </script>
+  });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (!tok()) return;
+  loadStats();
+  loadChart();
+});
+</script>
 </body>
 </html>

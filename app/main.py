@@ -574,18 +574,8 @@ def pos(): return FileResponse(os.path.join(BASE, "static", "pos.html"))
 def subscription(u=Depends(current_user)):
     with conn() as c:
         try:
-            u = c.execute("SELECT subscription FROM users WHERE username=?", (u["username"],)).fetchone()
-            subscription_val = u[0] if u else "free"
-        except Exception:
-            subscription_val = "free"
-        return {"subscription": subscription_val}
-
-@app.get("/subscription")
-def subscription(u=Depends(current_user)):
-    with conn() as c:
-        try:
-            u = c.execute("SELECT subscription FROM users WHERE username=?", (u["username"],)).fetchone()
-            subscription_val = u[0] if u else "free"
+            sub = c.execute("SELECT subscription FROM users WHERE username=?", (u["username"],)).fetchone()
+            subscription_val = sub[0] if sub else "free"
         except Exception:
             subscription_val = "free"
         return {"subscription": subscription_val}

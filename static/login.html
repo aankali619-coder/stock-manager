@@ -1,61 +1,156 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Stock Manager - Login</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/static/app.css">
-  <meta name="theme-color" content="#0f172a">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="StockManager">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login · Stock Manager</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="StockManager">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <nav style="position:fixed;top:0;left:0;height:100%;width:260px;background:#0d0d14;padding:30px 25px;border-right:1px solid #1e1e24">
-    <b>📦 StockManager</b>
-    <a href="/" class="on">Dashboard</a>
-    <a href="/items-page">Items</a>
-    <a href="/movements">Movements</a>
-    <a href="/warehouses">Warehouses</a>
-    <a href="/alerts">Alerts</a>
-    <a href="/reports">Reports</a>
-    <a href="/suppliers">Suppliers</a>
-    <a href="/purchases">Purchases</a>
-    <a href="/sales-page">Sales</a>
-    <a href="/users-page">Users</a>
-    <span style="margin-left:auto;color:#78787c;font-size:12px;">@ 2026</a>
-    <a href="/logout" style="color:#78787c;">Logout</a>
-  </nav>
-  <main style="margin-left:260px;padding:40px 20px;min-height:100vh">
-    <div class="card" style="background:#1e293b;border-radius:12px;padding:40px;margin-bottom:40px">
-      <h2 style="text-align:center;margin-bottom:30px">📦 StockManager</h2>
-      <div class="row">
-        <button id="tabLogin" onclick="showTab('login')" style="width:50%;">Login</button>
-        <button id="tabSignup" class="ghost" onclick="showTab('signup')" style="width:50%;">Register</button>
-      </div>
-      <div id="loginForm">
-        <input id="u" placeholder="Username" style="width:100%"><input id="p" type="password" placeholder="Password" style="width:100%">
-        <button onclick="login()" style="width:100%">Login</button>
-      </div>
-      <div id="signupForm" class="hide">
-        <input id="su_u" placeholder="Choose username" style="width:100%"><input id="su_e" type="email" placeholder="Email" style="width:100%"><input id="su_p" type="password" placeholder="Create password (min 8)" style="width:100%"><input id="su_p2" type="password" placeholder="Confirm password" style="width:100%"><input id="su_phn" type="tel" placeholder="Phone" style="width:100%"><input id="su_pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN (if set)" style="width:100%"><button onclick="signup()" style="width:100%">Create account</button>
-      </div>
-      <hr style="border-color:#334155;margin:14px 0">
-      <p id="loginErr" style="color:#f87171;margin-bottom:10px"></p>
-      <p id="suMsg" style="color:#4ade80;margin-bottom:10px"></p>
+<main style="max-width:520px;margin:0 auto;padding-top:60px">
+  <div class="card">
+    <h2 style="text-align:center;margin-top:0">📦 Stock Manager</h2>
+    <p style="text-align:center;color:#666">Inventory · POS · M-Pesa · Reports</p>
+
+    <div class="row">
+      <button id="tabLogin" onclick="showTab('login')" style="flex:1">Log in</button>
+      <button id="tabSignup" class="ghost" onclick="showTab('signup')" style="flex:1">Sign up</button>
     </div>
-    <div id="gbtn"></div>
-  </main>
-  <script>
-    function showTab(t){document.getElementById('loginForm').classList.toggle('hide',t!='login');document.getElementById('signupForm').classList.toggle('hide',t!='signup');document.getElementById('tabLogin').className=t=='login'?'':'ghost';document.getElementById('tabSignup').className=t=='signup'?'':'ghost'}
-    async function signup(){const r=await fetch('/api/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:su_u.value,email:su_e.value,password:su_p.value,phone:su_phn.value,pin:su_pin.value,confirm:su_p2.value,mpesa:su_mpesa.value})});const j=await r.json();if(!r.ok){document.getElementById('loginErr').textContent=j.detail;return}document.getElementById('suMsg').textContent='Account created! You can log in now.';showTab('login')}
-    async function onGoogle(resp){const r=await fetch('/api/google',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id_token:resp.credential})});const j=await r.json();if(!r.ok){document.getElementById('loginErr').textContent=j.detail;return}const finish=(j)=>{localStorage.setItem('tok',j.token);localStorage.setItem('role',j.role);localStorage.setItem('seen',j.seen_tutorial?'1':'0');window.location.href='/'}finish(j)}
-    async function login(){const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u.value,p.value,pin:pin.value})});if(!r.ok){const j=await r.json();document.getElementById('loginErr').textContent=j.detail;return}const finish=(j)=>{localStorage.setItem('tok',j.token);localStorage.setItem('role',j.role);localStorage.setItem('seen',j.seen_tutorial?'1':'0');window.location.href='/'}finish(await r.json())}
-    fetch('/api/config').then(r=>r.json()).then(c=>{if(!c.google_client_id)return;let tries=0;const iv=setInterval(()=>{tries++;if(window.google){clearInterval(iv);google.accounts.id.initialize({client_id:c.google_client_id,callback:onGoogle});google.accounts.id.renderButton(document.getElementById('gbtn'),{theme:'outline',size:'large'})}if(tries>20){clearInterval(iv);gbtn.innerHTML='<p style="color:#f87171">Google sign-in failed</p>'}},500)})
-  </script>
+
+    <div id="loginForm">
+      <input id="u" placeholder="Username" autocomplete="username">
+      <input id="p" type="password" placeholder="Password" autocomplete="current-password">
+      <input id="pin" type="password" inputmode="numeric" maxlength="6" placeholder="6-digit security PIN" autocomplete="off">
+      <button onclick="login()" style="width:100%">Log in</button>
+      <p style="color:#555;font-size:12px;text-align:center">Password + PIN = 2-factor sign-in</p>
+    </div>
+
+    <div id="signupForm" class="hide">
+      <input id="su_u" placeholder="Username (5–20 chars, starts with a letter)">
+      <input id="su_e" type="email" placeholder="Email (optional)">
+      <input id="su_p" type="password" placeholder="Password (8+: upper, lower, number, symbol)" autocomplete="new-password">
+      <input id="su_p2" type="password" placeholder="Confirm password" autocomplete="new-password">
+      <input id="su_phn" type="tel" placeholder="Phone (Kenyan, e.g. 0712345678)">
+      <input id="su_pin" type="password" inputmode="numeric" maxlength="6" placeholder="6-digit security PIN">
+      <input id="su_mpesa" placeholder="M-Pesa Till/Paybill or 07… number">
+      <button onclick="signup()" style="width:100%">Create account</button>
+      <p style="color:#555;font-size:12px;text-align:center">New accounts start empty — your data, your way.</p>
+    </div>
+
+    <hr style="border:none;border-top:1px solid #2a2a3e;margin:18px 0">
+    <p id="loginErr" style="color:#f87171;min-height:18px;margin:0 0 8px"></p>
+    <p id="suMsg" style="color:#4ade80;min-height:18px;margin:0"></p>
+    <div id="gbtn" style="text-align:center"></div>
+  </div>
+
+  <p style="text-align:center;color:#555;font-size:12px">
+    <a href="/copyright">© 2026 Stock Manager</a> · <a href="/about">About</a> · <a href="/help">Help</a>
+  </p>
+</main>
+
+<script>
+function showTab(t) {
+  document.getElementById('loginForm').classList.toggle('hide', t !== 'login');
+  document.getElementById('signupForm').classList.toggle('hide', t !== 'signup');
+  document.getElementById('tabLogin').className = t === 'login' ? '' : 'ghost';
+  document.getElementById('tabSignup').className = t === 'signup' ? '' : 'ghost';
+  document.getElementById('loginErr').textContent = '';
+  document.getElementById('suMsg').textContent = '';
+}
+
+function setErr(msg) { document.getElementById('loginErr').textContent = msg; }
+function setOk(msg) { document.getElementById('suMsg').textContent = msg; }
+
+function finish(j) {
+  localStorage.setItem('tok', j.token);
+  localStorage.setItem('role', j.role);
+  localStorage.setItem('seen', j.seen_tutorial ? '1' : '0');
+  location.href = '/';
+}
+
+async function login() {
+  setErr(''); setOk('');
+  const body = {
+    username: document.getElementById('u').value.trim(),
+    password: document.getElementById('p').value,
+    pin: document.getElementById('pin').value.trim()
+  };
+  if (!body.username || !body.password) return setErr('Enter username and password');
+  let j;
+  try {
+    const r = await fetch('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    j = await r.json();
+    if (!r.ok) return setErr(j.detail || 'Login failed');
+  } catch (e) { return setErr('Network error, try again'); }
+  finish(j);
+}
+
+async function signup() {
+  setErr(''); setOk('');
+  const body = {
+    username: document.getElementById('su_u').value.trim(),
+    email: document.getElementById('su_e').value.trim(),
+    password: document.getElementById('su_p').value,
+    confirm: document.getElementById('su_p2').value,
+    phone: document.getElementById('su_phn').value.trim(),
+    pin: document.getElementById('su_pin').value.trim(),
+    mpesa: document.getElementById('su_mpesa').value.trim()
+  };
+  if (!body.username || !body.password) return setErr('Username and password are required');
+  if (body.password !== body.confirm) return setErr('Passwords do not match');
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{4,19}$/.test(body.username)) return setErr('Weak username: 5–20 chars, start with a letter, letters/numbers/underscore only');
+  if (!(body.password.length >= 8 && /[A-Z]/.test(body.password) && /[a-z]/.test(body.password) && /\d/.test(body.password) && /[^A-Za-z0-9]/.test(body.password)))
+    return setErr('Weak password: use 8+ chars with upper, lower, number and symbol');
+  if (body.pin && !/^\d{6}$/.test(body.pin)) return setErr('Security PIN must be exactly 6 digits');
+  if (body.phone && !/^(\+?254|0)?[17]\d{8}$/.test(body.phone.replace(/\s/g, ''))) return setErr('Invalid phone: use Kenyan format e.g. 0712345678');
+  if (body.mpesa) {
+    const m = body.mpesa.replace(/\s/g, '');
+    if (!(/^(\+?254|0)?[17]\d{8}$/.test(m) || /^\d{5,7}$/.test(m)))
+      return setErr('Invalid M-Pesa: Kenyan phone 07… or Till/Paybill (5–7 digits)');
+  }
+  let j;
+  try {
+    const r = await fetch('/api/signup', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    j = await r.json();
+    if (!r.ok) return setErr(j.detail || 'Signup failed');
+  } catch (e) { return setErr('Network error, try again'); }
+  setOk('Account created! Log in with your username and password.');
+  showTab('login');
+  document.getElementById('suMsg').textContent = 'Account created! Log in with your username and password.';
+  document.getElementById('u').value = body.username;
+}
+
+async function onGoogle(resp) {
+  setErr(''); setOk('');
+  try {
+    const r = await fetch('/api/google', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id_token: resp.credential})});
+    const j = await r.json();
+    if (!r.ok) return setErr(j.detail || 'Google sign-in failed');
+    finish(j);
+  } catch (e) { setErr('Network error, try again'); }
+}
+
+fetch('/api/config').then(r => r.json()).then(c => {
+  if (!c.google_client_id) return;
+  let tries = 0;
+  const iv = setInterval(() => {
+    tries++;
+    if (window.google) {
+      clearInterval(iv);
+      google.accounts.id.initialize({client_id: c.google_client_id, callback: onGoogle});
+      google.accounts.id.renderButton(document.getElementById('gbtn'), {theme: 'outline', size: 'large'});
+    }
+    if (tries > 20) { clearInterval(iv); document.getElementById('gbtn').innerHTML = '<p style="color:#f87171">Google sign-in unavailable</p>'; }
+  }, 500);
+}).catch(() => {});
+
+if (localStorage.getItem('tok')) location.replace('/');
+</script>
 </body>
 </html>
