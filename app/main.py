@@ -570,6 +570,12 @@ def prices_page(): return FileResponse(os.path.join(BASE, "static", "prices.html
 @app.get("/pos")
 def pos(): return FileResponse(os.path.join(BASE, "static", "pos.html"))
 
+@app.get("/subscription")
+def subscription(u=Depends(current_user)):
+    with conn() as c:
+        u = c.execute("SELECT subscription FROM users WHERE username=?", (u["username"],)).fetchone()
+        return {"subscription": u[0] if u else "free"}
+
 @app.get("/login")
 def login_page(): return FileResponse(os.path.join(BASE, "static", "login.html"))
 
